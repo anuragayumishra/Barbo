@@ -1,0 +1,612 @@
+/* ==========================================
+   BARBO GLOBAL DESIGN SYSTEM (PREMIUM THEME)
+   ========================================== */
+
+:root {
+  /* HSL Color Palette - Dark Mode Default */
+  --bg-primary: #0a0b0e;
+  --bg-secondary: #12141a;
+  --bg-tertiary: #191c24;
+  
+  --accent-gold: #c5a880;
+  --accent-gold-hover: #e5cfa7;
+  --accent-gold-glow: rgba(197, 168, 128, 0.12);
+  
+  --text-primary: #f5f6f9;
+  --text-secondary: #949cae;
+  --text-muted: #5e6677;
+  
+  --border-subtle: rgba(197, 168, 128, 0.12);
+  --border-light: rgba(255, 255, 255, 0.04);
+  
+  --status-green: #38bdf8;
+  --status-amber: #fbbf24;
+  --status-red: #ef4444;
+
+  --shadow-premium: 0 16px 48px -12px rgba(0, 0, 0, 0.85);
+  --shadow-glow: 0 0 30px var(--accent-gold-glow);
+  
+  --transition-smooth: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+  --font-heading: 'Outfit', sans-serif;
+  --font-body: 'Inter', sans-serif;
+}
+
+/* Light Mode Overrides */
+[data-theme="light"] {
+  --bg-primary: #f8f6f0;       /* Sand Warm Background */
+  --bg-secondary: #ffffff;     /* Bright White Ivory Cards */
+  --bg-tertiary: #edebe4;
+  
+  --accent-gold: #ab8d62;      /* Rich Deep Gold Accent */
+  --accent-gold-hover: #8e724a;
+  --accent-gold-glow: rgba(171, 141, 98, 0.08);
+  
+  --text-primary: #1a1c22;     /* High Contrast Charcoal */
+  --text-secondary: #5a606f;
+  --text-muted: #8d94a5;
+  
+  --border-subtle: rgba(171, 141, 98, 0.2);
+  --border-light: rgba(0, 0, 0, 0.05);
+  
+  --status-green: #0284c7;     /* Sky Ocean */
+  --status-amber: #d97706;     /* Deep Orange */
+  --status-red: #dc2626;
+
+  --shadow-premium: 0 16px 40px -12px rgba(171, 141, 98, 0.12);
+  --shadow-glow: 0 0 25px var(--accent-gold-glow);
+}
+
+/* ==========================================
+   BASE & LAYOUT RESET
+   ========================================== */
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  font-family: var(--font-body);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  line-height: 1.5;
+  overflow-x: hidden;
+  transition: background-color 0.4s ease, color 0.4s ease;
+}
+
+/* Premium Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+}
+::-webkit-scrollbar-track {
+  background: var(--bg-primary);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--bg-tertiary);
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--accent-gold);
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-heading);
+  letter-spacing: -0.02em;
+  font-weight: 700;
+}
+
+button, input, select {
+  font-family: inherit;
+}
+
+/* ==========================================
+   GLASSMORPHISM & PREMIUM UTILITIES
+   ========================================== */
+
+.glass-card {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-light);
+  border-radius: 16px;
+  padding: 24px;
+  box-shadow: var(--shadow-premium);
+  transition: var(--transition-smooth);
+}
+
+[data-theme="dark"] .glass-card {
+  background: rgba(18, 20, 26, 0.6);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+
+.glass-card:hover {
+  border-color: var(--border-subtle);
+  transform: translateY(-4px);
+  box-shadow: var(--shadow-premium), var(--shadow-glow);
+}
+
+.gold-glow-btn {
+  background: var(--accent-gold);
+  color: #ffffff;
+}
+
+/* Handle light theme button text contrast */
+[data-theme="light"] .gold-glow-btn {
+  color: #ffffff;
+}
+
+[data-theme="dark"] .gold-glow-btn {
+  color: var(--bg-primary);
+}
+
+.gold-glow-btn {
+  border: none;
+  font-weight: 600;
+  padding: 12px 24px;
+  border-radius: 12px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  transition: var(--transition-smooth);
+}
+
+.gold-glow-btn:hover {
+  background: var(--accent-gold-hover);
+  box-shadow: 0 0 20px rgba(197, 168, 128, 0.4);
+  transform: scale(1.02);
+}
+
+.gold-glow-btn:disabled {
+  background: var(--text-muted);
+  color: var(--bg-secondary);
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+.btn-secondary {
+  background: transparent;
+  color: var(--text-primary);
+  border: 1px solid var(--border-light);
+  padding: 12px 24px;
+  border-radius: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: var(--transition-smooth);
+}
+
+.btn-secondary:hover {
+  border-color: var(--accent-gold);
+  background: rgba(255, 255, 255, 0.02);
+}
+
+[data-theme="light"] .btn-secondary:hover {
+  background: rgba(0, 0, 0, 0.02);
+}
+
+/* ==========================================
+   ANIMATIONS & KEYFRAMES
+   ========================================== */
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes scaleIn {
+  from { opacity: 0; transform: scale(0.95); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+@keyframes pulseDelay {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.8; transform: scale(1.05); }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.4s ease-out forwards;
+}
+
+.animate-slide-up {
+  animation: slideUp 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-scale-in {
+  animation: scaleIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.pulse-alert {
+  animation: pulseDelay 2s infinite ease-in-out;
+}
+
+/* ==========================================
+   BADGES & ACCENTS
+   ========================================== */
+
+.badge {
+  display: inline-flex;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.badge-gold {
+  background: rgba(197, 168, 128, 0.1);
+  color: var(--accent-gold);
+  border: 1px solid rgba(197, 168, 128, 0.2);
+}
+
+[data-theme="light"] .badge-gold {
+  background: rgba(171, 141, 98, 0.08);
+  border-color: rgba(171, 141, 98, 0.25);
+}
+
+.badge-green {
+  background: rgba(56, 189, 248, 0.1);
+  color: var(--status-green);
+  border: 1px solid rgba(56, 189, 248, 0.2);
+}
+
+.badge-amber {
+  background: rgba(251, 191, 36, 0.1);
+  color: var(--status-amber);
+  border: 1px solid rgba(251, 191, 36, 0.2);
+}
+
+.badge-red {
+  background: rgba(239, 68, 68, 0.1);
+  color: var(--status-red);
+  border: 1px solid rgba(239, 68, 68, 0.2);
+}
+
+/* ==========================================
+   MODAL BACKDROP & OVERLAY
+   ========================================== */
+
+.modal-backdrop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(5, 5, 8, 0.85);
+  backdrop-filter: blur(8px);
+  z-index: 1000;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 20px;
+}
+
+[data-theme="light"] .modal-backdrop {
+  background: rgba(248, 246, 240, 0.85);
+}
+
+/* ==========================================
+   ROLE BANNER LAYOUT & THEME SWITCHER
+   ========================================== */
+
+.role-banner {
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border-light);
+  padding: 10px 24px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  position: sticky;
+  top: 0;
+  z-index: 999;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+}
+
+.role-banner span {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+.role-banner-controls {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+}
+
+/* Dynamic theme switch toggle slider styles */
+.theme-switch-container {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border-right: 1px solid var(--border-light);
+  padding-right: 16px;
+  margin-right: 4px;
+}
+
+.theme-switch {
+  position: relative;
+  display: inline-block;
+  width: 46px;
+  height: 24px;
+  cursor: pointer;
+}
+
+.theme-switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.theme-slider {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: var(--bg-tertiary);
+  border: 1px solid var(--border-light);
+  transition: .3s cubic-bezier(0.25, 0.8, 0.25, 1);
+  border-radius: 34px;
+}
+
+.theme-slider:before {
+  position: absolute;
+  content: "";
+  height: 16px;
+  width: 16px;
+  left: 3px;
+  bottom: 3px;
+  background-color: var(--accent-gold);
+  transition: .3s cubic-bezier(0.25, 0.8, 0.25, 1);
+  border-radius: 50%;
+}
+
+input:checked + .theme-slider:before {
+  transform: translateX(22px);
+}
+
+.role-btn {
+  padding: 6px 14px;
+  border-radius: 8px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: var(--transition-smooth);
+}
+
+.role-btn.active {
+  background: var(--accent-gold);
+  color: #ffffff;
+  border: 1px solid var(--accent-gold);
+}
+
+[data-theme="dark"] .role-btn.active {
+  color: var(--bg-primary);
+}
+
+.role-btn.inactive {
+  background: transparent;
+  color: var(--text-secondary);
+  border: 1px solid var(--border-light);
+}
+
+.role-btn.inactive:hover {
+  border-color: var(--accent-gold);
+  color: var(--text-primary);
+}
+
+/* ==========================================
+   GEOLOCATION RADAR SCANNER & MAP STYLES
+   ========================================== */
+
+/* Concentric Radar Sweeper */
+.radar-scanner-container {
+  position: relative;
+  width: 240px;
+  height: 240px;
+  margin: 0 auto;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(197, 168, 128, 0.05) 0%, transparent 70%);
+  border: 1px solid rgba(197, 168, 128, 0.1);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  overflow: hidden;
+}
+
+.radar-ring {
+  position: absolute;
+  border-radius: 50%;
+  border: 1px dashed rgba(197, 168, 128, 0.2);
+  animation: radarPing 3s infinite ease-out;
+  pointer-events: none;
+}
+
+.radar-ring-1 { width: 80px; height: 80px; animation-delay: 0s; }
+.radar-ring-2 { width: 150px; height: 150px; animation-delay: 1s; }
+.radar-ring-3 { width: 220px; height: 220px; animation-delay: 2s; }
+
+.radar-sweep-line {
+  position: absolute;
+  width: 50%;
+  height: 50%;
+  top: 0;
+  left: 50%;
+  background: linear-gradient(90deg, rgba(197, 168, 128, 0.3) 0%, transparent 60%);
+  transform-origin: bottom left;
+  animation: radarRotate 4s linear infinite;
+  pointer-events: none;
+  border-left: 2px solid var(--accent-gold);
+}
+
+@keyframes radarRotate {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+@keyframes radarPing {
+  0% { transform: scale(0.9); opacity: 0.8; }
+  100% { transform: scale(1.15); opacity: 0; }
+}
+
+/* Stylized Vector Map Component */
+.vector-map-board {
+  position: relative;
+  width: 100%;
+  height: 320px;
+  background-color: #0d0f14;
+  border: 1px solid var(--border-light);
+  border-radius: 14px;
+  overflow: hidden;
+  box-shadow: inset 0 0 40px rgba(0, 0, 0, 0.8);
+}
+
+[data-theme="light"] .vector-map-board {
+  background-color: #f4f2eb;
+  box-shadow: inset 0 0 25px rgba(0, 0, 0, 0.05);
+}
+
+.vector-road {
+  stroke: rgba(255, 255, 255, 0.06);
+  stroke-width: 12px;
+  stroke-linecap: round;
+  fill: none;
+}
+
+[data-theme="light"] .vector-road {
+  stroke: rgba(0, 0, 0, 0.05);
+}
+
+.vector-road-glow {
+  stroke: rgba(255, 255, 255, 0.02);
+  stroke-width: 24px;
+  stroke-linecap: round;
+  fill: none;
+}
+
+.vector-road-label {
+  fill: var(--text-muted);
+  font-size: 8px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  pointer-events: none;
+}
+
+/* Pulsing User & Shop beacons */
+.pulsing-user-beacon {
+  fill: #38bdf8;
+  filter: drop-shadow(0 0 8px #38bdf8);
+  animation: beaconPulse 1.5s infinite alternate;
+}
+
+.pulsing-shop-beacon {
+  fill: var(--accent-gold);
+  filter: drop-shadow(0 0 8px var(--accent-gold));
+  animation: beaconPulse 1.5s infinite alternate;
+}
+
+@keyframes beaconPulse {
+  0% { r: 6px; opacity: 0.8; }
+  100% { r: 9px; opacity: 1; filter: drop-shadow(0 0 16px currentColor); }
+}
+
+/* Dashed Route line */
+.neon-optimal-path {
+  stroke: var(--accent-gold);
+  stroke-width: 3.5px;
+  stroke-dasharray: 8, 6;
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  filter: drop-shadow(0 0 4px var(--accent-gold));
+  animation: optimalRouteFlow 15s linear infinite;
+}
+
+@keyframes optimalRouteFlow {
+  from { stroke-dashoffset: 300; }
+  to { stroke-dashoffset: 0; }
+}
+
+.pulsing-tracker-dot {
+  fill: #ffffff;
+  stroke: var(--accent-gold);
+  stroke-width: 2.5px;
+  filter: drop-shadow(0 0 10px var(--accent-gold));
+}
+
+.map-grid-overlay {
+  background-image: radial-gradient(rgba(255, 255, 255, 0.02) 1px, transparent 1px);
+  background-size: 20px 20px;
+}
+
+[data-theme="light"] .map-grid-overlay {
+  background-image: radial-gradient(rgba(0, 0, 0, 0.02) 1px, transparent 1px);
+}
+
+/* Custom Leaflet Beacon & Handshake Shaker */
+@keyframes leafletBeacon {
+  0% { transform: scale(0.9); opacity: 0.8; }
+  100% { transform: scale(1.45); opacity: 0; }
+}
+
+@keyframes shakeError {
+  0%, 100% { transform: translateX(0); }
+  20%, 60% { transform: translateX(-8px); }
+  40%, 80% { transform: translateX(8px); }
+}
+
+.shake-error {
+  animation: shakeError 0.4s ease-in-out;
+  border: 1px solid var(--status-red) !important;
+  box-shadow: 0 0 15px rgba(239, 68, 68, 0.25) !important;
+}
+
+.custom-leaflet-user-icon, .custom-leaflet-barber-icon, .custom-leaflet-crawler-icon {
+  background: transparent !important;
+  border: none !important;
+}
+
+/* Make Leaflet maps responsive with theme colors */
+.leaflet-container {
+  background-color: var(--bg-primary) !important;
+  font-family: var(--font-body) !important;
+}
+
+.leaflet-popup-content-wrapper {
+  background: var(--bg-secondary) !important;
+  color: var(--text-primary) !important;
+  border: 1px solid var(--border-light) !important;
+  border-radius: 8px !important;
+  font-size: 0.8rem !important;
+}
+
+.leaflet-popup-tip {
+  background: var(--bg-secondary) !important;
+}
+
+/* Invert Google Maps tiles for dark mode to make it obsidian-dark */
+html:not([data-theme='light']) .leaflet-tile-container {
+  filter: invert(100%) hue-rotate(180deg) brightness(85%) contrast(90%) !important;
+}
+
+/* Micro-animations and tracking transitions */
+.spin-animation {
+  animation: spin 6s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+
