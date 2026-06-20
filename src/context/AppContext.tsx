@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
+import React, { createContext, useContext, useState, useEffect } from 'react';
 
 // ==========================================
 // TYPES DEFINITIONS
@@ -74,8 +74,7 @@ export interface User {
 interface AppContextType {
   currentUser: User | null;
   login: (email: string, password: string) => Promise<{ success: boolean; message: string }>;
-  sendOtp: (email: string) => Promise<{ success: boolean; message: string; otp?: string }>;
-  signup: (name: string, email: string, password: string, otp: string) => Promise<{ success: boolean; message: string }>;
+  signup: (name: string, email: string, password: string) => Promise<{ success: boolean; message: string }>;
   logout: () => void;
   barbers: Barber[];
   services: Service[];
@@ -421,7 +420,6 @@ const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const BASE_URL = (import.meta as any).env?.VITE_API_URL || 'http://localhost:5001/api';
-  const offlineOtpRef = useRef<Record<string, string>>({});
 
   const [currentUser, setCurrentUser] = useState<User | null>(() => {
     const saved = localStorage.getItem('barbo_active_user');
@@ -645,40 +643,12 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     }
   };
 
-  const sendOtp = async (email: string) => {
-    try {
-      const res = await fetch(`${BASE_URL}/auth/send-otp`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email })
-      });
-      const data = await res.json();
-      if (res.ok && data.success) {
-        return { success: true, message: data.message, otp: data.otp };
-      } else {
-        return { success: false, message: data.message || 'Failed to send OTP' };
-      }
-    } catch (err) {
-      console.warn("Express server offline, running fallback local OTP generator.");
-      const trimmedEmail = email.trim().toLowerCase();
-      const exists = MOCK_USERS.some((u) => u.email === trimmedEmail);
-      if (exists) {
-        return { success: false, message: 'Email already registered.' };
-      }
-
-      const mockOtp = String(Math.floor(1000 + Math.random() * 9000));
-      offlineOtpRef.current[trimmedEmail] = mockOtp;
-      console.log(`✉️ [Offline OTP] Mock code ${mockOtp} generated for ${trimmedEmail}`);
-      return { success: true, message: `OTP sent successfully (Offline Fallback)`, otp: mockOtp };
-    }
-  };
-
-  const signup = async (name: string, email: string, password: string, otp: string) => {
+  const signup = async (name: string, email: string, password: string) => {
     try {
       const res = await fetch(`${BASE_URL}/auth/signup`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, email, password, otp })
+        body: JSON.stringify({ name, email, password })
       });
       const data = await res.json();
       if (res.ok && data.success) {
@@ -690,21 +660,10 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     } catch (err) {
       console.warn("Express server offline, running fallback local credential creator.");
       const trimmedEmail = email.trim().toLowerCase();
-      
-      const storedOtp = offlineOtpRef.current[trimmedEmail];
-      if (!storedOtp) {
-        return { success: false, message: 'Please request an OTP first.' };
-      }
-      if (storedOtp !== String(otp)) {
-        return { success: false, message: 'Invalid OTP code entered.' };
-      }
-
       const exists = MOCK_USERS.some((u) => u.email === trimmedEmail);
       if (exists) {
         return { success: false, message: 'Email already registered.' };
       }
-
-      delete offlineOtpRef.current[trimmedEmail];
 
       const newUserId = `cust-${Date.now()}`;
       const newUser: User = {
@@ -1179,7 +1138,6 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       value={{
         currentUser,
         login,
-        sendOtp,
         signup,
         logout,
         barbers,
