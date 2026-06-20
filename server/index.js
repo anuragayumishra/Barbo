@@ -11,6 +11,8 @@ const PORT = process.env.PORT || 5001;
 app.use(cors());
 app.use(express.json());
 
+const otpStore = new Map();
+
 const formatDateLocal = (dateVal) => {
   if (!dateVal) return '';
   if (typeof dateVal === 'string') {
@@ -85,19 +87,74 @@ app.post('/api/auth/login', async (req, res) => {
   }
 });
 
-// 1.5. Auth Signup Route
-app.post('/api/auth/signup', async (req, res) => {
-  const { name, email, password } = req.body;
-  if (!name || !email || !password) {
-    return res.status(400).json({ success: false, message: 'Name, email and password are required' });
+// 1.3. Send OTP Route
+app.post('/api/auth/send-otp', async (req, res) => {
+  const { email } = req.body;
+  if (!email) {
+    return res.status(400).json({ success: false, message: 'Email is required' });
   }
 
   try {
     const trimmedEmail = email.trim().toLowerCase();
+    
+    // Check if email already exists
     const [existing] = await pool.query('SELECT id FROM users WHERE email = ?', [trimmedEmail]);
     if (existing.length > 0) {
       return res.status(400).json({ success: false, message: 'Email is already registered' });
     }
+
+    // Generate 4-digit OTP
+    const otp = String(Math.floor(1000 + Math.random() * 9000));
+    const expiresAt = Date.now() + 5 * 60 * 1000; // 5 minutes expiration
+    
+    // Store in-memory
+    otpStore.set(trimmedEmail, { otp, expiresAt });
+    
+    console.log(`✉️ [OTP Dispatch] Sent code ${otp} to ${trimmedEmail}`);
+
+    res.json({ 
+      success: true, 
+      message: `OTP sent successfully to ${trimmedEmail}`,
+      otp: otp 
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// 1.5. Auth Signup Route
+app.post('/api/auth/signup', async (req, res) => {
+  const { name, email, password, otp } = req.body;
+  if (!name || !email || !password || !otp) {
+    return res.status(400).json({ success: false, message: 'Name, email, password, and OTP are required' });
+  }
+
+  try {
+    const trimmedEmail = email.trim().toLowerCase();
+    
+    // Validate OTP
+    const record = otpStore.get(trimmedEmail);
+    if (!record) {
+      return res.status(400).json({ success: false, message: 'Please request an OTP first.' });
+    }
+
+    if (Date.now() > record.expiresAt) {
+      otpStore.delete(trimmedEmail);
+      return res.status(400).json({ success: false, message: 'OTP has expired. Please request a new one.' });
+    }
+
+    if (record.otp !== String(otp)) {
+      return res.status(400).json({ success: false, message: 'Invalid OTP code entered.' });
+    }
+
+    // Check existing (safety)
+    const [existing] = await pool.query('SELECT id FROM users WHERE email = ?', [trimmedEmail]);
+    if (existing.length > 0) {
+      return res.status(400).json({ success: false, message: 'Email is already registered' });
+    }
+
+    // Validated, delete from store
+    otpStore.delete(trimmedEmail);
 
     const userId = `cust-${Date.now()}`;
     await pool.query(
