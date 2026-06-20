@@ -203,6 +203,13 @@ export default function App() {
     resetBarbersToDefault
   } = useApp();
 
+  const getLocalDateString = (d: Date = new Date()) => {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const dateVal = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${dateVal}`;
+  };
+
   const isOtpVisible = (appDate: string, startTime: string) => {
     const [y, m, d] = appDate.split('-').map(Number);
     const [hours, minutes] = startTime.split(':').map(Number);
@@ -320,8 +327,7 @@ export default function App() {
   const [isBookingOpen, setIsBookingOpen] = useState(false);
   const [selectedBarber, setSelectedBarber] = useState<Barber | null>(null);
   const [selectedDate, setSelectedDate] = useState(() => {
-    const today = new Date();
-    return today.toISOString().split('T')[0];
+    return getLocalDateString();
   });
   const [selectedServiceIds, setSelectedServiceIds] = useState<string[]>([]);
   const [selectedTimeSlot, setSelectedTimeSlot] = useState('');
@@ -1733,7 +1739,7 @@ export default function App() {
                 <input 
                   type="date"
                   value={selectedDate}
-                  min={new Date().toISOString().split('T')[0]}
+                  min={getLocalDateString()}
                   onChange={(e) => setSelectedDate(e.target.value)}
                   disabled={isTimeSelectionDisabled}
                   style={{ 
