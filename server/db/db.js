@@ -12,7 +12,8 @@ const pool = mysql.createPool({
   port: Number(process.env.DB_PORT) || 3306,
   waitForConnections: true,
   connectionLimit: 10,
-  queueLimit: 0
+  queueLimit: 0,
+  dateStrings: true
 });
 
 // Test connection and log success
@@ -28,5 +29,19 @@ const testConnection = async () => {
 };
 
 testConnection();
+
+// Prevent idle connection errors from crashing the process
+pool.on('error', (err) => {
+  console.error('⚠️ Unexpected database pool error:', err.message);
+});
+
+// Process-wide crash prevention for unhandled database connection rejections
+process.on('unhandledRejection', (reason, promise) => {
+  console.warn('⚠️ Unhandled promise rejection caught:', reason.message || reason);
+});
+
+process.on('uncaughtException', (err, origin) => {
+  console.error(`⚠️ Caught exception: ${err}\nException origin: ${origin}`);
+});
 
 export default pool;

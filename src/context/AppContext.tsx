@@ -29,6 +29,7 @@ export interface Barber {
   leadStylist: string; // Lead Barber Stylist
   lat: number;
   lon: number;
+  chairsCount: number;
 }
 
 export interface Appointment {
@@ -43,7 +44,9 @@ export interface Appointment {
   services: Service[];
   totalPrice: number;
   totalDuration: number;
-  status: 'upcoming' | 'completed' | 'cancelled';
+  status: 'upcoming' | 'in_progress' | 'completed' | 'cancelled';
+  paymentMethod?: string;
+  paymentStatus?: string;
   travelOtp: string; // Secure 4-digit complete key
   notifications: string[]; // Event triggers
   userLat?: number;
@@ -57,6 +60,7 @@ export interface Appointment {
   travelStatus?: string;
   travelSimProgress?: number;
   travelRouteCoordinates?: { lat: number; lng: number }[];
+  reviewed?: boolean;
 }
 
 export interface User {
@@ -74,11 +78,14 @@ interface AppContextType {
   barbers: Barber[];
   services: Service[];
   appointments: Appointment[];
-  bookAppointment: (barberId: string, date: string, startTime: string, serviceIds: string[]) => Promise<boolean>;
-  updateAppointmentStatus: (appointmentId: string, status: 'upcoming' | 'completed' | 'cancelled') => void;
+  bookAppointment: (barberId: string, date: string, startTime: string, serviceIds: string[], paymentMethod?: string, paymentStatus?: string) => Promise<boolean>;
+  rescheduleAppointment: (appointmentId: string, date: string, startTime: string, serviceIds?: string[]) => Promise<{ success: boolean; message: string }>;
+  updateAppointmentStatus: (appointmentId: string, status: 'upcoming' | 'in_progress' | 'completed' | 'cancelled', cancellationReason?: string) => void;
   updateBarberDelay: (barberId: string, delayStatus: string) => void;
   updateAppointmentTelemetry: (appointmentId: string, telemetry: Partial<Appointment>) => void;
-  completeAppointmentWithOtp: (appointmentId: string, otp: string) => Promise<{ success: boolean; message: string }>;
+  startAppointmentWithOtp: (appointmentId: string, otp: string) => Promise<{ success: boolean; message: string }>;
+  completeAppointment: (appointmentId: string) => Promise<{ success: boolean; message: string }>;
+  submitReview: (appointmentId: string, barberId: string, rating: number, comment: string) => Promise<{ success: boolean; message: string }>;
   
   // Real Maps & Geolocation Operations
   userCoordinates: { lat: number; lng: number } | null;
@@ -153,7 +160,8 @@ const INITIAL_BARBERS: Barber[] = [
     routeCoordinates: [],
     leadStylist: 'Senior Stylist',
     lat: 23.232696,
-    lon: 77.429901
+    lon: 77.429901,
+    chairsCount: 3
   },
   {
     id: 'b2',
@@ -174,7 +182,8 @@ const INITIAL_BARBERS: Barber[] = [
     routeCoordinates: [],
     leadStylist: 'Master Stylist',
     lat: 23.231500,
-    lon: 77.432000
+    lon: 77.432000,
+    chairsCount: 2
   },
   {
     id: 'b3',
@@ -195,7 +204,8 @@ const INITIAL_BARBERS: Barber[] = [
     routeCoordinates: [],
     leadStylist: 'Deepali Sen',
     lat: 23.220872,
-    lon: 77.429364
+    lon: 77.429364,
+    chairsCount: 3
   },
   {
     id: 'b4',
@@ -216,7 +226,8 @@ const INITIAL_BARBERS: Barber[] = [
     routeCoordinates: [],
     leadStylist: 'Vicky Kumar',
     lat: 23.297422,
-    lon: 77.402544
+    lon: 77.402544,
+    chairsCount: 2
   },
   {
     id: 'b5',
@@ -237,7 +248,8 @@ const INITIAL_BARBERS: Barber[] = [
     routeCoordinates: [],
     leadStylist: 'Sameer Khan',
     lat: 23.291797,
-    lon: 77.353161
+    lon: 77.353161,
+    chairsCount: 4
   },
   {
     id: 'b6',
@@ -258,7 +270,8 @@ const INITIAL_BARBERS: Barber[] = [
     routeCoordinates: [],
     leadStylist: 'Vikram Malhotra',
     lat: 23.218800,
-    lon: 77.425300
+    lon: 77.425300,
+    chairsCount: 2
   },
   {
     id: 'b7',
@@ -279,7 +292,8 @@ const INITIAL_BARBERS: Barber[] = [
     routeCoordinates: [],
     leadStylist: 'Hemant Sen',
     lat: 23.197000,
-    lon: 77.447000
+    lon: 77.447000,
+    chairsCount: 2
   },
   {
     id: 'b8',
@@ -300,7 +314,8 @@ const INITIAL_BARBERS: Barber[] = [
     routeCoordinates: [],
     leadStylist: 'Vishal Kumar',
     lat: 23.208500,
-    lon: 77.452000
+    lon: 77.452000,
+    chairsCount: 2
   }
 ];
 
@@ -403,7 +418,7 @@ const MOCK_USERS: { email: string; pass: string; user: User }[] = [
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const BASE_URL = 'http://localhost:5001/api';
+  const BASE_URL = (import.meta as any).env?.VITE_API_URL || 'http://localhost:5001/api';
 
   const [currentUser, setCurrentUser] = useState<User | null>(() => {
     const saved = localStorage.getItem('barbo_active_user');
@@ -417,7 +432,22 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
   const [barbers, setBarbers] = useState<Barber[]>(INITIAL_BARBERS);
   const [services, setServices] = useState<Service[]>(INITIAL_SERVICES);
-  const [appointments, setAppointments] = useState<Appointment[]>(INITIAL_APPOINTMENTS);
+  const [appointments, setAppointments] = useState<Appointment[]>(() => {
+    const saved = localStorage.getItem('barbo_appointments');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {}
+    }
+    return INITIAL_APPOINTMENTS;
+  });
+
+  // Persist appointments locally to support offline fallback state
+  useEffect(() => {
+    if (currentUser) {
+      localStorage.setItem('barbo_appointments', JSON.stringify(appointments));
+    }
+  }, [appointments, currentUser]);
 
   // Geolocation & Search States
   const [userCoordinates, setUserCoordinatesState] = useState<{ lat: number; lng: number } | null>(() => {
@@ -506,9 +536,23 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         if (res.ok) {
           const data = await res.json();
           setAppointments(data);
+        } else {
+          // Fallback to local storage if DB is down but server is running
+          const saved = localStorage.getItem('barbo_appointments');
+          if (saved) {
+            try {
+              setAppointments(JSON.parse(saved));
+            } catch (e) {}
+          }
         }
       } catch (err) {
         console.warn("Failed to load appointments from backend. Using offline seeds fallback.");
+        const saved = localStorage.getItem('barbo_appointments');
+        if (saved) {
+          try {
+            setAppointments(JSON.parse(saved));
+          } catch (e) {}
+        }
       }
     };
     fetchAppointments();
@@ -571,6 +615,9 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         setCurrentUser(data.user);
         return { success: true, message: 'Login successful!' };
       } else {
+        if (res.status === 500 || res.status === 503) {
+          throw new Error('Database connection failed');
+        }
         return { success: false, message: data.message || 'Invalid credentials' };
       }
     } catch (err) {
@@ -600,7 +647,7 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   };
 
   // Booking System Operations writing directly to database
-  const bookAppointment = async (barberId: string, date: string, startTime: string, serviceIds: string[]): Promise<boolean> => {
+  const bookAppointment = async (barberId: string, date: string, startTime: string, serviceIds: string[], paymentMethod?: string, paymentStatus?: string): Promise<boolean> => {
     if (!currentUser) return false;
 
     try {
@@ -613,7 +660,9 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           barberId,
           date,
           startTime,
-          serviceIds
+          serviceIds,
+          paymentMethod,
+          paymentStatus
         })
       });
       const data = await res.json();
@@ -621,11 +670,24 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         setAppointments((prev) => [data.appointment, ...prev]);
         return true;
       } else {
+        if (res.status === 500 || res.status === 503) {
+          throw new Error('Database connection failed');
+        }
         alert(data.message || 'Failed to book slot.');
         return false;
       }
     } catch (err) {
       console.warn("Backend server offline, running fallback offline reservation.");
+      // Validate that the slot is at least 30 minutes in the future
+      const [yVal, mVal, dVal] = date.split('-').map(Number);
+      const [hVal, minVal] = startTime.split(':').map(Number);
+      const bookedTime = new Date(yVal, mVal - 1, dVal, hVal, minVal, 0);
+      const now = new Date();
+      if (bookedTime.getTime() - now.getTime() < 30 * 60 * 1000) {
+        alert('New bookings must be scheduled at least 30 minutes in advance.');
+        return false;
+      }
+
       const selectedServices = services.filter((s) => serviceIds.includes(s.id));
       if (selectedServices.length === 0) return false;
 
@@ -663,6 +725,8 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         totalPrice,
         totalDuration,
         status: 'upcoming',
+        paymentMethod: paymentMethod || 'Pay At Shop',
+        paymentStatus: paymentStatus || 'unpaid',
         travelOtp: randomOtp,
         notifications: [],
         userLat: startLat,
@@ -683,17 +747,166 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     }
   };
 
-  const updateAppointmentStatus = async (appointmentId: string, status: 'upcoming' | 'completed' | 'cancelled') => {
+  const rescheduleAppointment = async (appointmentId: string, date: string, startTime: string, serviceIds?: string[]): Promise<{ success: boolean; message: string }> => {
+    try {
+      const res = await fetch(`${BASE_URL}/appointments/${appointmentId}/reschedule`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ date, startTime, serviceIds })
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setAppointments((prev) =>
+          prev.map((app) => (app.id === appointmentId ? data.appointment : app))
+        );
+        return { success: true, message: data.message };
+      } else {
+        if (res.status === 500 || res.status === 503) {
+          throw new Error('Database connection failed');
+        }
+        return { success: false, message: data.message || 'Failed to reschedule.' };
+      }
+    } catch (err) {
+      console.warn("Server offline, performing offline fallback reschedule.");
+      const app = appointments.find(a => a.id === appointmentId);
+      if (!app) return { success: false, message: 'Appointment not found.' };
+
+      const now = new Date();
+
+      // Validate that the new scheduled time is not in the past
+      const [parsedY, parsedM, parsedD] = date.split('-').map(Number);
+      const [parsedH, parsedMin] = startTime.split(':').map(Number);
+      const newScheduledTime = new Date(parsedY, parsedM - 1, parsedD, parsedH, parsedMin, 0);
+      if (newScheduledTime.getTime() <= now.getTime()) {
+        return { success: false, message: 'Cannot reschedule to a past date or time.' };
+      }
+
+      // Validate offline reschedule window: at least 30 minutes if time/date changed, or 5 minutes if only services changed
+      const isDateTimeChanged = app.date !== date || app.startTime !== startTime;
+      const cutoffMinutes = isDateTimeChanged ? 30 : 5;
+
+      const [y, m, dStr] = app.date.split('-').map(Number);
+      const [hours, minutes] = app.startTime.split(':').map(Number);
+      const scheduledTime = new Date(y, m - 1, dStr, hours, minutes, 0);
+      const timeDiffMinutes = (scheduledTime.getTime() - now.getTime()) / (60 * 1000);
+
+      if (timeDiffMinutes < cutoffMinutes) {
+        return {
+          success: false,
+          message: `Rescheduling is only allowed at least ${cutoffMinutes} minutes before the scheduled start time.`
+        };
+      }
+
+      // Check collision for offline mode (same logic as offline bookAppointment)
+      const targetBarber = barbers.find(b => b.id === app.barberId);
+      if (!targetBarber) return { success: false, message: 'Barber not found.' };
+
+      // Recalculate duration/price based on new serviceIds if provided
+      let updatedServices = app.services;
+      let newPrice = app.totalPrice;
+      let newDuration = app.totalDuration;
+      if (serviceIds) {
+        updatedServices = services.filter(s => serviceIds.includes(s.id));
+        newPrice = updatedServices.reduce((sum, s) => sum + s.price, 0);
+        newDuration = updatedServices.reduce((sum, s) => sum + s.durationMinutes, 0);
+      }
+
+      // Calculate end time
+      const [newH, newM] = startTime.split(':').map(Number);
+      let endH = newH;
+      let endM = newM + newDuration;
+      if (endM >= 60) {
+        endH += Math.floor(endM / 60);
+        endM = endM % 60;
+      }
+      const endTime = `${String(endH).padStart(2, '0')}:${String(endM).padStart(2, '0')}`;
+
+      // Check collision
+      const collisionTime = (s1: number, e1: number, s2: number, e2: number) => {
+        return (s1 < e2 && s2 < e1);
+      };
+
+      const timeToMins = (t: string) => {
+        const [h, min] = t.split(':').map(Number);
+        return h * 60 + min;
+      };
+
+      const targetStart = timeToMins(startTime);
+      const targetEnd = targetStart + newDuration;
+
+      // Filter other upcoming/in_progress appointments on the same date for this barber
+      const otherApps = appointments.filter(a => a.barberId === app.barberId && a.date === date && a.status === 'upcoming' && a.id !== appointmentId);
+      let overlapCount = 0;
+      for (const ov of otherApps) {
+        const s = timeToMins(ov.startTime);
+        const e = timeToMins(ov.endTime);
+        if (collisionTime(targetStart, targetEnd, s, e)) {
+          overlapCount++;
+        }
+      }
+
+      if (overlapCount >= (targetBarber.chairsCount || 2)) {
+        return { success: false, message: 'Time slot collision detected! The salon is at full capacity at the selected time.' };
+      }
+
+      setAppointments((prev) =>
+        prev.map((a) => (a.id === appointmentId ? { 
+          ...a, 
+          date, 
+          startTime, 
+          endTime, 
+          services: updatedServices,
+          totalPrice: newPrice,
+          totalDuration: newDuration,
+          travelSimProgress: 0, 
+          travelStatus: 'Preparing Departure...',
+          notifications: [`Rescheduled to ${date} at ${startTime}`]
+        } : a))
+      );
+
+      return { success: true, message: 'Appointment successfully rescheduled (offline).' };
+    }
+  };
+
+  const updateAppointmentStatus = async (
+    appointmentId: string, 
+    status: 'upcoming' | 'in_progress' | 'completed' | 'cancelled',
+    cancellationReason?: string
+  ) => {
     setAppointments((prev) =>
-      prev.map((app) => (app.id === appointmentId ? { ...app, status } : app))
+      prev.map((app) => {
+        if (app.id === appointmentId) {
+          const isRefunded = status === 'cancelled' && app.paymentStatus === 'paid';
+          return {
+            ...app,
+            status,
+            paymentStatus: isRefunded ? 'refunded' : app.paymentStatus,
+            travelStatus: status === 'cancelled' && cancellationReason ? `Cancelled: ${cancellationReason}` : app.travelStatus,
+            notifications: status === 'cancelled' && cancellationReason 
+              ? [
+                  ...(app.notifications || []), 
+                  `Appointment cancelled. Reason: ${cancellationReason}`,
+                  ...(isRefunded ? [`Refund of ₹${app.totalPrice} initiated to your original payment method.`] : [])
+                ] 
+              : app.notifications
+          };
+        }
+        return app;
+      })
     );
 
     try {
       if (status === 'cancelled') {
+        const reason = cancellationReason || 'No reason provided';
         await fetch(`${BASE_URL}/appointments/${appointmentId}/telemetry`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ travelStatus: 'Cancelled', travelSimProgress: 0 })
+          body: JSON.stringify({ 
+            travelStatus: `Cancelled: ${reason}`, 
+            travelSimProgress: 0, 
+            status: 'cancelled',
+            notification: `Appointment cancelled. Reason: ${reason}`
+          })
         });
       }
     } catch(e) {}
@@ -739,10 +952,10 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     } catch (e) {}
   };
 
-  // Secure Database OTP Checkout Handshake Gate
-  const completeAppointmentWithOtp = async (appointmentId: string, otp: string): Promise<{ success: boolean; message: string }> => {
+  // Start appointment with OTP verification (OTP check-in)
+  const startAppointmentWithOtp = async (appointmentId: string, otp: string): Promise<{ success: boolean; message: string }> => {
     try {
-      const res = await fetch(`${BASE_URL}/appointments/${appointmentId}/complete`, {
+      const res = await fetch(`${BASE_URL}/appointments/${appointmentId}/start`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ otp })
@@ -750,22 +963,131 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       const data = await res.json();
       if (res.ok && data.success) {
         setAppointments((prev) =>
-          prev.map((app) => (app.id === appointmentId ? { ...app, status: 'completed' } : app))
+          prev.map((app) => (app.id === appointmentId ? { ...app, status: 'in_progress', notifications: [...(app.notifications || []), "OTP Verified. Service started successfully!"] } : app))
         );
-        return { success: true, message: 'Handshake completed successfully' };
+        return { success: true, message: 'OTP verified. Service started!' };
       } else {
+        if (res.status === 500 || res.status === 503) {
+          throw new Error('Database connection failed');
+        }
         return { success: false, message: data.message || 'OTP Verification failed!' };
       }
     } catch (err) {
-      console.warn("Server offline, performing offline fallback verifications.");
+      console.warn("Server offline, performing offline fallback check-in.");
       const app = appointments.find(a => a.id === appointmentId);
       if (app && app.travelOtp === otp) {
+        // Validate offline check-in time: within +/- 30 minutes of scheduled start time
+        const [y, m, dStr] = app.date.split('-').map(Number);
+        const [hours, minutes] = app.startTime.split(':').map(Number);
+        const scheduledTime = new Date(y, m - 1, dStr, hours, minutes, 0);
+        const now = new Date();
+        const diffMinutes = Math.abs(now.getTime() - scheduledTime.getTime()) / (60 * 1000);
+
+        if (diffMinutes > 30) {
+          return {
+            success: false,
+            message: `Check-in is only allowed within 30 minutes before or after your scheduled start time (${app.startTime}). Please try again closer to your appointment time.`
+          };
+        }
+
         setAppointments((prev) =>
-          prev.map((a) => (a.id === appointmentId ? { ...a, status: 'completed' } : a))
+          prev.map((a) => (a.id === appointmentId ? { ...a, status: 'in_progress', notifications: [...(a.notifications || []), "OTP check-in authorized (offline)."] } : a))
         );
-        return { success: true, message: 'Offline validation authorized.' };
+        return { success: true, message: 'Offline check-in authorized.' };
       }
       return { success: false, message: 'Invalid secure OTP code entered.' };
+    }
+  };
+
+  // Complete service when finished (no OTP needed)
+  const completeAppointment = async (appointmentId: string): Promise<{ success: boolean; message: string }> => {
+    try {
+      const res = await fetch(`${BASE_URL}/appointments/${appointmentId}/complete`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setAppointments((prev) =>
+          prev.map((app) => (app.id === appointmentId ? { ...app, status: 'completed', notifications: [...(app.notifications || []), "Service completed."] } : app))
+        );
+        return { success: true, message: 'Service marked completed!' };
+      } else {
+        if (res.status === 500 || res.status === 503) {
+          throw new Error('Database connection failed');
+        }
+        return { success: false, message: data.message || 'Failed to complete service!' };
+      }
+    } catch (err) {
+      console.warn("Server offline, completing service locally.");
+      setAppointments((prev) =>
+        prev.map((app) => (app.id === appointmentId ? { ...app, status: 'completed', notifications: [...(app.notifications || []), "Service completed (offline)."] } : app))
+      );
+      return { success: true, message: 'Service marked completed locally.' };
+    }
+  };
+
+  // Submit Review & rating (calls backend or runs offline fallback)
+  const submitReview = async (appointmentId: string, barberId: string, rating: number, comment: string): Promise<{ success: boolean; message: string }> => {
+    if (!currentUser) return { success: false, message: 'User not logged in' };
+    
+    try {
+      const res = await fetch(`${BASE_URL}/reviews`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          appointmentId,
+          barberId,
+          customerId: currentUser.id,
+          rating,
+          comment
+        })
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setAppointments((prev) =>
+          prev.map((app) => (app.id === appointmentId ? { ...app, reviewed: true } : app))
+        );
+
+        // Fetch updated barbers
+        const lat = userCoordinates?.lat || 23.2495;
+        const lng = userCoordinates?.lng || 77.4172;
+        try {
+          const bRes = await fetch(`${BASE_URL}/barbers?lat=${lat}&lng=${lng}`);
+          if (bRes.ok) {
+            const bData = await bRes.json();
+            if (bData) setBarbers(bData);
+          }
+        } catch (e) {}
+
+        return { success: true, message: 'Review submitted successfully!' };
+      } else {
+        if (res.status === 500 || res.status === 503) {
+          throw new Error('Database connection failed');
+        }
+        return { success: false, message: data.message || 'Failed to submit review.' };
+      }
+    } catch (err) {
+      console.warn("Server offline, submitting review locally.");
+      setAppointments((prev) =>
+        prev.map((app) => (app.id === appointmentId ? { ...app, reviewed: true } : app))
+      );
+
+      setBarbers((prevBarbers) =>
+        prevBarbers.map((b) => {
+          if (b.id === barberId) {
+            const originalCount = b.reviewsCount;
+            const originalRating = b.rating;
+            const newCount = originalCount + 1;
+            const newRating = ((originalRating * originalCount) + rating) / newCount;
+            const roundedRating = Math.round(newRating * 10) / 10;
+            return { ...b, rating: roundedRating, reviewsCount: newCount };
+          }
+          return b;
+        })
+      );
+
+      return { success: true, message: 'Review submitted locally.' };
     }
   };
 
@@ -779,10 +1101,13 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         services: INITIAL_SERVICES,
         appointments,
         bookAppointment,
+        rescheduleAppointment,
         updateAppointmentStatus,
         updateBarberDelay,
         updateAppointmentTelemetry,
-        completeAppointmentWithOtp,
+        startAppointmentWithOtp,
+        completeAppointment,
+        submitReview,
         
         // Geolocation search bindings
         userCoordinates,

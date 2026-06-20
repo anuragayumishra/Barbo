@@ -19,7 +19,8 @@ import {
   Moon,
   Compass,
   Search,
-  Key
+  Key,
+  AlertTriangle
 } from 'lucide-react';
 import { gsap } from 'gsap';
 
@@ -46,9 +47,10 @@ const LOCAL_BHOPAL_COORDS: Record<string, { lat: number; lon: number; display: s
 interface NavigateButtonProps {
   appointment: any;
   barber: Barber;
+  hideButton?: boolean;
 }
 
-const NavigateButton: React.FC<NavigateButtonProps> = ({ appointment, barber }) => {
+const NavigateButton: React.FC<NavigateButtonProps> = ({ appointment, barber, hideButton }) => {
   const handleNavigate = () => {
     const userLat = appointment.userLat || 23.2495;
     const userLon = appointment.userLon || 77.4172;
@@ -61,15 +63,17 @@ const NavigateButton: React.FC<NavigateButtonProps> = ({ appointment, barber }) 
 
   return (
     <div style={{ marginTop: '16px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
-      <button 
-        type="button" 
-        className="gold-glow-btn" 
-        style={{ padding: '14px 20px', fontSize: '1rem', justifyContent: 'center', display: 'flex', alignItems: 'center', gap: '8px', width: '100%', cursor: 'pointer' }}
-        onClick={handleNavigate}
-      >
-        <MapPin size={18} />
-        Navigate to {barber.name} via Maps
-      </button>
+      {!hideButton && (
+        <button 
+          type="button" 
+          className="gold-glow-btn" 
+          style={{ padding: '14px 20px', fontSize: '1rem', justifyContent: 'center', display: 'flex', alignItems: 'center', gap: '8px', width: '100%', cursor: 'pointer' }}
+          onClick={handleNavigate}
+        >
+          <MapPin size={18} />
+          Navigate to {barber.name} via Maps
+        </button>
+      )}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '10px' }}>
         <div style={{ background: 'var(--bg-tertiary)', border: '1px solid var(--border-light)', padding: '10px', borderRadius: '8px', textAlign: 'center' }}>
           <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', display: 'block', textTransform: 'uppercase', fontWeight: 600 }}>Est. Distance</span>
@@ -88,6 +92,96 @@ const NavigateButton: React.FC<NavigateButtonProps> = ({ appointment, barber }) 
   );
 };
 
+interface ReviewPromptProps {
+  app: any;
+  submitReview: (appointmentId: string, barberId: string, rating: number, comment: string) => Promise<{ success: boolean; message: string }>;
+  onSuccess?: (message: string) => void;
+}
+
+const ReviewPrompt: React.FC<ReviewPromptProps> = ({ app, submitReview, onSuccess }) => {
+  const [rating, setRating] = useState(5);
+  const [comment, setComment] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [msg, setMsg] = useState('');
+
+  return (
+    <div className="glass-card gsap-card animate-slide-up" style={{ marginBottom: '36px', border: '1px solid var(--accent-gold-glow)' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px', color: 'var(--accent-gold)' }}>
+        <Sparkles size={20} />
+        <h3 style={{ fontSize: '1.2rem', textTransform: 'uppercase', letterSpacing: '0.02em' }}>Rate Your Experience</h3>
+      </div>
+      <p style={{ color: 'var(--text-secondary)', fontSize: '0.88rem', marginBottom: '16px' }}>
+        Your service at <strong>{app.barberName}</strong> is complete. Share your feedback to help others!
+      </p>
+      
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+        <div>
+          <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'block', marginBottom: '6px', fontWeight: 600, textTransform: 'uppercase' }}>Rating</span>
+          <div style={{ display: 'flex', gap: '8px' }}>
+            {[1, 2, 3, 4, 5].map((star) => (
+              <button
+                key={star}
+                type="button"
+                onClick={() => setRating(star)}
+                style={{ background: 'transparent', border: 'none', cursor: 'pointer', padding: '4px' }}
+              >
+                <Star 
+                  size={24} 
+                  fill={star <= rating ? 'var(--accent-gold)' : 'transparent'} 
+                  style={{ color: 'var(--accent-gold)' }} 
+                />
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div>
+          <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'block', marginBottom: '6px', fontWeight: 600, textTransform: 'uppercase' }}>Write a Review</span>
+          <textarea
+            placeholder="Tell us about the service, cut quality, or styling experience..."
+            value={comment}
+            onChange={(e) => setComment(e.target.value)}
+            style={{
+              width: '100%',
+              minHeight: '70px',
+              padding: '12px',
+              background: 'var(--bg-tertiary)',
+              border: '1px solid var(--border-light)',
+              borderRadius: '10px',
+              color: 'var(--text-primary)',
+              outline: 'none',
+              fontSize: '0.9rem',
+              resize: 'vertical'
+            }}
+          />
+        </div>
+
+        {msg && <p style={{ fontSize: '0.85rem', color: 'var(--status-green)', fontWeight: 600 }}>{msg}</p>}
+
+        <button
+          type="button"
+          className="gold-glow-btn"
+          disabled={submitting || !!msg}
+          onClick={async () => {
+            setSubmitting(true);
+            const res = await submitReview(app.id, app.barberId, rating, comment);
+            setSubmitting(false);
+            if (res.success) {
+              setMsg('Thank you for your feedback!');
+              if (onSuccess) {
+                onSuccess('Thank you! Review submitted successfully.');
+              }
+            }
+          }}
+          style={{ alignSelf: 'flex-start', padding: '10px 20px', fontSize: '0.85rem', justifyContent: 'center' }}
+        >
+          {submitting ? 'Submitting...' : msg ? 'Feedback Submitted ✓' : 'Submit Feedback'}
+        </button>
+      </div>
+    </div>
+  );
+};
+
 export default function App() {
   const { 
     currentUser,
@@ -96,16 +190,66 @@ export default function App() {
     barbers, 
     services, 
     appointments, 
-    bookAppointment, 
+    bookAppointment,
+    rescheduleAppointment,
     updateAppointmentStatus, 
     updateBarberDelay,
-    updateAppointmentTelemetry,
-    completeAppointmentWithOtp,
+    startAppointmentWithOtp,
+    completeAppointment,
+    submitReview,
     setUserCoordinates,
     locationName,
     fetchLocalBarbers,
     resetBarbersToDefault
   } = useApp();
+
+  const isOtpVisible = (appDate: string, startTime: string) => {
+    const [y, m, d] = appDate.split('-').map(Number);
+    const [hours, minutes] = startTime.split(':').map(Number);
+    const scheduledTime = new Date(y, m - 1, d, hours, minutes, 0);
+    const now = new Date();
+    const timeRemainingMinutes = (scheduledTime.getTime() - now.getTime()) / (60 * 1000);
+    return timeRemainingMinutes <= 45;
+  };
+
+  const isCheckInWindowOpen = (appDate: string, startTime: string, endTime: string) => {
+    const [y, m, d] = appDate.split('-').map(Number);
+    const [endH, endM] = endTime.split(':').map(Number);
+    const slotEndTime = new Date(y, m - 1, d, endH, endM, 0);
+    const now = new Date();
+    if (now.getTime() > slotEndTime.getTime()) {
+      return false;
+    }
+    const [hours, minutes] = startTime.split(':').map(Number);
+    const scheduledTime = new Date(y, m - 1, d, hours, minutes, 0);
+    const diffMinutes = Math.abs(now.getTime() - scheduledTime.getTime()) / (60 * 1000);
+    return diffMinutes <= 30;
+  };
+
+  const canReschedule = (appDate: string, startTime: string) => {
+    const [y, m, d] = appDate.split('-').map(Number);
+    const [hours, minutes] = startTime.split(':').map(Number);
+    const scheduledTime = new Date(y, m - 1, d, hours, minutes, 0);
+    const now = new Date();
+    const timeDiffMinutes = (scheduledTime.getTime() - now.getTime()) / (60 * 1000);
+    return timeDiffMinutes >= 5;
+  };
+
+  const sortUpcomingAppointments = (apps: any[]) => {
+    return [...apps].sort((a, b) => {
+      const dateTimeA = new Date(`${a.date}T${a.startTime}`);
+      const dateTimeB = new Date(`${b.date}T${b.startTime}`);
+      return dateTimeA.getTime() - dateTimeB.getTime();
+    });
+  };
+
+  const sortPastAppointments = (apps: any[]) => {
+    return [...apps].sort((a, b) => {
+      const dateTimeA = new Date(`${a.date}T${a.startTime}`);
+      const dateTimeB = new Date(`${b.date}T${b.startTime}`);
+      return dateTimeB.getTime() - dateTimeA.getTime();
+    });
+  };
 
   // Login Form States
   const [email, setEmail] = useState('');
@@ -121,6 +265,37 @@ export default function App() {
   const [otpInput, setOtpInput] = useState('');
   const [otpError, setOtpError] = useState('');
   const [otpSuccess, setOtpSuccess] = useState(false);
+
+  // UX Enhancements: cancellation confirmation and toast notifications
+  const [rescheduleApp, setRescheduleApp] = useState<any | null>(null);
+  const isTimeSelectionDisabled = rescheduleApp ? (() => {
+    const [y, m, d] = rescheduleApp.date.split('-').map(Number);
+    const [hours, minutes] = rescheduleApp.startTime.split(':').map(Number);
+    const scheduledTime = new Date(y, m - 1, d, hours, minutes, 0);
+    const now = new Date();
+    const timeDiffMinutes = (scheduledTime.getTime() - now.getTime()) / (60 * 1000);
+    return timeDiffMinutes < 30;
+  })() : false;
+  const [toastMsg, setToastMsg] = useState<string | null>(null);
+  const toastTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const showToast = (message: string) => {
+    if (toastTimeoutRef.current) {
+      clearTimeout(toastTimeoutRef.current);
+    }
+    setToastMsg(message);
+    toastTimeoutRef.current = setTimeout(() => {
+      setToastMsg(null);
+    }, 4000);
+  };
+
+  useEffect(() => {
+    return () => {
+      if (toastTimeoutRef.current) {
+        clearTimeout(toastTimeoutRef.current);
+      }
+    };
+  }, []);
 
   // Geolocation Radar Scanner States
   const [isLocationGranted, setIsLocationGranted] = useState(() => {
@@ -152,6 +327,18 @@ export default function App() {
   const [selectedTimeSlot, setSelectedTimeSlot] = useState('');
   const [bookingSuccess, setBookingSuccess] = useState(false);
   const [bookingError, setBookingError] = useState('');
+
+  // Payment states
+  const [paymentMethodOption, setPaymentMethodOption] = useState<'Pay At Shop' | 'UPI Online'>('Pay At Shop');
+  const [showPaymentQrModal, setShowPaymentQrModal] = useState(false);
+  const [paymentUpiLoaderStatus, setPaymentUpiLoaderStatus] = useState('');
+  const [paymentUpiError, setPaymentUpiError] = useState('');
+
+  // Cancellation Modal States
+  const [cancellingApp, setCancellingApp] = useState<any | null>(null);
+  const [cancelReasonOption, setCancelReasonOption] = useState('');
+  const [cancelReasonText, setCancelReasonText] = useState('');
+  const cancelledAppIdsRef = useRef<Set<string>>(new Set());
 
   // Day & Night Theme State
   const [isLightMode, setIsLightMode] = useState(() => {
@@ -239,6 +426,31 @@ export default function App() {
     }
   };
   
+  // Real-time cancellation notification listener
+  const prevAppointmentsRef = useRef<any[]>([]);
+  useEffect(() => {
+    if (prevAppointmentsRef.current.length > 0 && appointments.length > 0 && currentUser) {
+      appointments.forEach((app) => {
+        const prevApp = prevAppointmentsRef.current.find((a) => a.id === app.id);
+        if (prevApp && prevApp.status !== 'cancelled' && app.status === 'cancelled') {
+          const isCancelledLocally = cancelledAppIdsRef.current.has(app.id);
+          if (!isCancelledLocally) {
+            const reasonMatch = app.travelStatus && app.travelStatus.startsWith('Cancelled: ') 
+              ? app.travelStatus.replace('Cancelled: ', '') 
+              : 'No reason provided';
+            
+            if (currentUser.role === 'customer' && app.customerId === currentUser.id) {
+              showToast(`Your appointment with ${app.barberName} on ${app.date} at ${app.startTime} was cancelled. Reason: ${reasonMatch}`);
+            } else if (currentUser.role === 'barber' && app.barberId === activeBarberId) {
+              showToast(`Appointment for ${app.customerName} on ${app.date} at ${app.startTime} was cancelled. Reason: ${reasonMatch}`);
+            }
+          }
+        }
+      });
+    }
+    prevAppointmentsRef.current = appointments;
+  }, [appointments, currentUser, activeBarberId]);
+
   // Geolocation Radar scanning simulation timer hook
   useEffect(() => {
     let timer: any;
@@ -347,13 +559,45 @@ export default function App() {
 
   const handleOpenBooking = (barber: Barber) => {
     setSelectedBarber(barber);
+    setRescheduleApp(null);
     setSelectedServiceIds([]);
     setSelectedTimeSlot('');
     setBookingSuccess(false);
     setBookingError('');
+    setPaymentMethodOption('Pay At Shop');
+    setShowPaymentQrModal(false);
+    setPaymentUpiLoaderStatus('');
+    setPaymentUpiError('');
     setIsBookingOpen(true);
 
     // Modal Spring Animate
+    setTimeout(() => {
+      gsap.fromTo(".gsap-modal",
+        { scale: 0.9, y: 30, opacity: 0 },
+        { scale: 1, y: 0, opacity: 1, duration: 0.4, ease: "back.out(1.5)" }
+      );
+    }, 50);
+  };
+
+  const handleOpenReschedule = (app: any) => {
+    const barber = barbers.find((b) => b.id === app.barberId);
+    if (!barber) return;
+    
+    setSelectedBarber(barber);
+    setRescheduleApp(app);
+    
+    setSelectedDate(app.date);
+    setSelectedTimeSlot(app.startTime);
+    setSelectedServiceIds(app.services.map((s: any) => s.id));
+    
+    setBookingSuccess(false);
+    setBookingError('');
+    setPaymentMethodOption('Pay At Shop');
+    setShowPaymentQrModal(false);
+    setPaymentUpiLoaderStatus('');
+    setPaymentUpiError('');
+    setIsBookingOpen(true);
+
     setTimeout(() => {
       gsap.fromTo(".gsap-modal",
         { scale: 0.9, y: 30, opacity: 0 },
@@ -372,8 +616,47 @@ export default function App() {
 
   const handleConfirmBooking = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (rescheduleApp) {
+      if (!selectedDate || !selectedTimeSlot) {
+        setBookingError('Please select date and time slot.');
+        return;
+      }
+      const res = await rescheduleAppointment(
+        rescheduleApp.id,
+        selectedDate,
+        selectedTimeSlot,
+        selectedServiceIds
+      );
+      if (res.success) {
+        setBookingSuccess(true);
+        setBookingError('');
+        // Success spring effect
+        gsap.to(".gsap-modal", { scale: 0.97, duration: 0.2, yoyo: true, repeat: 1 });
+        setTimeout(() => {
+          setIsBookingOpen(false);
+          setRescheduleApp(null);
+          setBookingSuccess(false);
+          showToast('Appointment rescheduled successfully!');
+        }, 1600);
+      } else {
+        setBookingError(res.message);
+      }
+      return;
+    }
+
     if (!selectedBarber || !selectedDate || !selectedTimeSlot || selectedServiceIds.length === 0) {
       setBookingError('Please fill out all booking selections.');
+      return;
+    }
+
+    if (paymentMethodOption === 'UPI Online') {
+      setIsBookingOpen(false);
+      setPaymentUpiLoaderStatus('Initializing UPI secure channel...');
+      setPaymentUpiError('');
+      setShowPaymentQrModal(true);
+      setTimeout(() => {
+        setPaymentUpiLoaderStatus('');
+      }, 1200);
       return;
     }
 
@@ -381,7 +664,9 @@ export default function App() {
       selectedBarber.id,
       selectedDate,
       selectedTimeSlot,
-      selectedServiceIds
+      selectedServiceIds,
+      'Pay At Shop',
+      'unpaid'
     );
 
     if (success) {
@@ -392,14 +677,70 @@ export default function App() {
       setTimeout(() => {
         setIsBookingOpen(false);
         setBookingSuccess(false);
+        showToast('Appointment booked successfully!');
       }, 1600);
     } else {
       setBookingError('Double booking detected! Time slot overlaps with an existing appointment.');
     }
   };
 
+  const handleConfirmUpiBooking = async (simulatedSuccess: boolean) => {
+    if (!selectedBarber || !selectedDate || !selectedTimeSlot || selectedServiceIds.length === 0) {
+      return;
+    }
+
+    if (simulatedSuccess) {
+      setPaymentUpiLoaderStatus('Contacting bank gateway...');
+      await new Promise((r) => setTimeout(r, 800));
+      setPaymentUpiLoaderStatus('Verifying transaction token...');
+      await new Promise((r) => setTimeout(r, 600));
+
+      const success = await bookAppointment(
+        selectedBarber.id,
+        selectedDate,
+        selectedTimeSlot,
+        selectedServiceIds,
+        'UPI Online',
+        'paid'
+      );
+
+      if (success) {
+        setPaymentUpiLoaderStatus('Payment Verified Successfully ✓');
+        setTimeout(() => {
+          setShowPaymentQrModal(false);
+          setPaymentUpiLoaderStatus('');
+          showToast('Appointment booked & paid online successfully!');
+        }, 1200);
+      } else {
+        setPaymentUpiError('Double booking detected! Slot is no longer available.');
+        setPaymentUpiLoaderStatus('');
+      }
+    } else {
+      setPaymentUpiLoaderStatus('Contacting UPI payment gateway...');
+      await new Promise((r) => setTimeout(r, 800));
+      setPaymentUpiError('Transaction Declined: Insufficient balance or bank network timed out.');
+      setPaymentUpiLoaderStatus('');
+    }
+  };
+
   const activeBarberBookings = appointments.filter((app) => app.barberId === activeBarber.id);
+  const sortedBarberBookings = [...activeBarberBookings].sort((a, b) => {
+    const isFinishedA = a.status === 'completed' || a.status === 'cancelled';
+    const isFinishedB = b.status === 'completed' || b.status === 'cancelled';
+    if (isFinishedA && !isFinishedB) return 1;
+    if (!isFinishedA && isFinishedB) return -1;
+
+    const dateTimeA = new Date(`${a.date}T${a.startTime}`);
+    const dateTimeB = new Date(`${b.date}T${b.startTime}`);
+    
+    if (isFinishedA && isFinishedB) {
+      return dateTimeB.getTime() - dateTimeA.getTime();
+    }
+    return dateTimeA.getTime() - dateTimeB.getTime();
+  });
   const completedBookings = activeBarberBookings.filter((app) => app.status === 'completed');
+  const onlineEarnings = completedBookings.filter(app => app.paymentStatus === 'paid').reduce((sum, app) => sum + app.totalPrice, 0);
+  const counterEarnings = completedBookings.filter(app => app.paymentStatus !== 'paid').reduce((sum, app) => sum + app.totalPrice, 0);
   const dailyEarnings = completedBookings.reduce((sum, app) => sum + app.totalPrice, 0);
 
   // ==========================================
@@ -548,7 +889,7 @@ export default function App() {
             </label>
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', borderRight: '1px solid var(--border-light)', paddingRight: '16px', marginRight: '4px' }}>
+          <div className="role-banner-user-info" style={{ display: 'flex', alignItems: 'center', gap: '8px', borderRight: '1px solid var(--border-light)', paddingRight: '16px', marginRight: '4px' }}>
             <User size={14} style={{ color: 'var(--accent-gold)' }} />
             <span style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-primary)' }}>
               {currentUser.name}
@@ -580,10 +921,10 @@ export default function App() {
               <Sparkles size={16} />
               <span className="badge badge-gold">Bhopal's Premium Barber Network</span>
             </div>
-            <h1 style={{ fontSize: '3rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '-0.03em', lineHeight: 1.1, color: 'var(--text-primary)' }}>
+            <h1 style={{ fontSize: 'var(--hero-title-size, 3rem)', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '-0.03em', lineHeight: 1.1, color: 'var(--text-primary)' }}>
               Find Your <span style={{ color: 'var(--accent-gold)' }}>Barber</span>
             </h1>
-            <p style={{ color: 'var(--text-secondary)', fontSize: '1.1rem', marginTop: '12px', maxWidth: '600px', margin: '12px auto 0' }}>
+            <p style={{ color: 'var(--text-secondary)', fontSize: 'var(--hero-subtitle-size, 1.1rem)', marginTop: '12px', maxWidth: '600px', margin: '12px auto 0' }}>
               Book premium haircuts, straight razor wet shaves, and traditional herbal champis in <strong>Jinsi & Jahangirabad, Bhopal</strong>.
             </p>
           </div>
@@ -698,8 +1039,8 @@ export default function App() {
                   } finally {
                     setIsSearchingAddress(false);
                   }
-                }} style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
-                  <div style={{ position: 'relative', flex: 1, minWidth: '240px' }}>
+                }} style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }} className="location-form">
+                  <div style={{ position: 'relative', flex: 1, minWidth: '240px' }} className="location-search-wrapper">
                     <Search size={16} style={{ position: 'absolute', left: '14px', top: '15px', color: 'var(--text-muted)' }} />
                     <input 
                       type="text" 
@@ -720,7 +1061,7 @@ export default function App() {
                   </div>
                   <button 
                     type="submit" 
-                    className="gold-glow-btn"
+                    className="location-update-btn gold-glow-btn"
                     disabled={isSearchingAddress}
                     style={{ padding: '12px 24px', fontSize: '0.9rem', justifyContent: 'center' }}
                   >
@@ -728,7 +1069,7 @@ export default function App() {
                   </button>
                   <button 
                     type="button" 
-                    className="btn-secondary"
+                    className="location-share-btn btn-secondary"
                     onClick={handleShareLocation}
                     disabled={isSearchingAddress}
                     style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '12px 20px', fontSize: '0.9rem', border: '1px solid var(--accent-gold-glow)' }}
@@ -760,17 +1101,24 @@ export default function App() {
                 </div>
               </div>
 
-              {/* Real-time Delay & Active Appointments Section */}
-              {appointments.filter(app => app.customerId === currentUser.id && app.status === 'upcoming').length > 0 && (
-                <div style={{ marginBottom: '50px' }}>
-                  <h2 style={{ fontSize: '1.5rem', marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <Clock size={20} style={{ color: 'var(--accent-gold)' }} />
-                    Your Upcoming Bookings
-                  </h2>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(360px, 1fr))', gap: '24px' }}>
-                    {appointments
-                      .filter((app) => app.customerId === currentUser.id && app.status === 'upcoming')
-                      .map((app) => {
+                  {/* Unreviewed Completed Appointments - Rate your Barber Prompt */}
+                  {appointments
+                    .filter(app => app.customerId === currentUser.id && app.status === 'completed' && !app.reviewed)
+                    .map(app => (
+                      <ReviewPrompt key={app.id} app={app} submitReview={submitReview} onSuccess={showToast} />
+                    ))}
+
+                  {/* Real-time Delay & Active Appointments Section */}
+                  {appointments.filter(app => app.customerId === currentUser.id && (app.status === 'upcoming' || app.status === 'in_progress')).length > 0 && (
+                    <div style={{ marginBottom: '50px' }}>
+                      <h2 style={{ fontSize: '1.5rem', marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <Clock size={20} style={{ color: 'var(--accent-gold)' }} />
+                        Your Upcoming Bookings
+                      </h2>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(var(--grid-min-width, 360px), 1fr))', gap: '24px' }}>
+                        {sortUpcomingAppointments(appointments
+                          .filter((app) => app.customerId === currentUser.id && (app.status === 'upcoming' || app.status === 'in_progress')))
+                          .map((app) => {
                         const barberData = barbers.find((b) => b.id === app.barberId);
                         const isDelayed = barberData && barberData.delayStatus !== 'On Time';
                         
@@ -778,37 +1126,59 @@ export default function App() {
                           <div key={app.id} className="glass-card gsap-card" style={{ borderColor: isDelayed ? 'var(--status-amber)' : 'var(--border-light)' }}>
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
                               <div>
-                                <span className="badge badge-gold" style={{ marginBottom: '8px' }}>Pay At Shop</span>
+                                <div style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
+                                  <span className={`badge ${app.paymentStatus === 'paid' ? 'badge-green' : 'badge-gold'}`}>
+                                    {app.paymentMethod === 'UPI Online' ? (app.paymentStatus === 'paid' ? 'Paid Online (UPI)' : 'Online Pending') : 'Pay At Shop'}
+                                  </span>
+                                  <span className={`badge ${app.status === 'in_progress' ? 'badge-amber pulse-alert' : 'badge-gold'}`}>
+                                    {app.status === 'in_progress' ? 'In Progress' : app.status}
+                                  </span>
+                                </div>
                                 <h3 style={{ fontSize: '1.25rem' }}>{app.barberName}</h3>
                               </div>
-                              
-                              {/* Real-time Delay Alert status */}
-                              {barberData && (
-                                <span className={`badge ${isDelayed ? 'badge-amber pulse-alert' : 'badge-green'}`}>
-                                  {barberData.delayStatus === 'On Time' ? 'Barber On Time' : `Delay: ${barberData.delayStatus}`}
-                                </span>
-                              )}
                             </div>
-
-                            {/* Secure Travel OTP Handshake Box */}
-                            <div style={{ 
-                              background: 'var(--accent-gold-glow)', 
-                              border: '1.5px dashed var(--accent-gold)', 
-                              borderRadius: '10px', 
-                              padding: '12px', 
-                              textAlign: 'center', 
-                              marginBottom: '16px' 
-                            }}>
-                              <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', display: 'block', textTransform: 'uppercase', fontWeight: 600, letterSpacing: '0.05em' }}>
-                                Secure Checkout OTP
+                            
+                            {/* Real-time Delay Alert status */}
+                            {barberData && (
+                              <span className={`badge ${isDelayed ? 'badge-amber pulse-alert' : 'badge-green'}`}>
+                                {barberData.delayStatus === 'On Time' ? 'Barber On Time' : `Delay: ${barberData.delayStatus}`}
                               </span>
-                              <strong style={{ fontSize: '1.5rem', letterSpacing: '4px', color: 'var(--accent-gold)', display: 'block', margin: '4px 0' }}>
-                                {app.travelOtp}
-                              </strong>
-                              <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                                Share this with your barber upon completion to authorize checkout.
-                              </span>
-                            </div>
+                            )}
+                             {/* Secure Check-in OTP Box */}
+                             {(() => {
+                                const [y, m, d] = app.date.split('-').map(Number);
+                                const [endH, endM] = app.endTime.split(':').map(Number);
+                                const slotEndTime = new Date(y, m - 1, d, endH, endM, 0);
+                                const isPastSlot = new Date().getTime() > slotEndTime.getTime();
+                                
+                                const showOtp = !isPastSlot && isOtpVisible(app.date, app.startTime);
+                                return (
+                                  <div style={{ 
+                                    background: isPastSlot ? 'rgba(239, 68, 68, 0.04)' : showOtp ? 'var(--accent-gold-glow)' : 'rgba(255, 255, 255, 0.02)', 
+                                    border: `1.5px dashed ${isPastSlot ? 'var(--status-red)' : showOtp ? 'var(--accent-gold)' : 'var(--border-color)'}`, 
+                                    borderRadius: '10px', 
+                                    padding: '12px', 
+                                    textAlign: 'center', 
+                                    marginBottom: '16px' 
+                                  }}>
+                                    <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', display: 'block', textTransform: 'uppercase', fontWeight: 600, letterSpacing: '0.05em' }}>
+                                      Secure Check-in OTP
+                                    </span>
+                                    <strong style={{ 
+                                      fontSize: isPastSlot ? '1.2rem' : showOtp ? '1.5rem' : '1.1rem', 
+                                      letterSpacing: showOtp ? '4px' : '0px', 
+                                      color: isPastSlot ? 'var(--status-red)' : showOtp ? 'var(--accent-gold)' : 'var(--text-muted)', 
+                                      display: 'block', 
+                                      margin: '4px 0' 
+                                    }}>
+                                      {isPastSlot ? '⏳ Expired' : showOtp ? app.travelOtp : '🔒 Locked'}
+                                    </strong>
+                                    <span style={{ fontSize: '0.75rem', color: isPastSlot ? 'var(--status-red)' : 'var(--text-muted)' }}>
+                                      {isPastSlot ? 'This booking slot has passed away and the OTP is expired.' : showOtp ? 'Share this with your barber upon arrival to start the service.' : 'Unlocks 45 minutes before your scheduled slot.'}
+                                    </span>
+                                  </div>
+                                );
+                              })()}
 
                             {/* Booking Schedule Details */}
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', color: 'var(--text-secondary)', fontSize: '0.9rem', marginBottom: '20px' }}>
@@ -822,11 +1192,11 @@ export default function App() {
                               </div>
                               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                                 <Scissors size={14} style={{ color: 'var(--accent-gold)' }} />
-                                <span>Services: {app.services.map(s => s.name).join(', ')}</span>
+                                <span>Services: {app.services.map((s: any) => s.name).join(', ')}</span>
                               </div>
                               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                                 <span style={{ color: 'var(--accent-gold)', fontWeight: 700, fontSize: '1.05rem' }}>₹</span>
-                                <span>Total Price: <strong>₹{app.totalPrice}</strong></span>
+                                <span>Total Price: <strong>₹{app.totalPrice}</strong> <span style={{ fontSize: '0.8rem', color: app.paymentStatus === 'paid' ? 'var(--status-green)' : 'var(--text-muted)' }}>({app.paymentStatus === 'paid' ? 'Paid Online' : 'Pay at salon'})</span></span>
                               </div>
                               <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', marginTop: '4px' }}>
                                 <MapPin size={14} style={{ color: 'var(--accent-gold)', flexShrink: 0, marginTop: '2px' }} />
@@ -835,24 +1205,56 @@ export default function App() {
                             </div>
 
                             {/* Action - Cancel & Google Maps Navigation */}
-                            <div style={{ display: 'flex', gap: '12px' }}>
-                              <button 
-                                className="btn-secondary" 
-                                style={{ flex: 1, padding: '10px', fontSize: '0.85rem' }}
-                                onClick={() => updateAppointmentStatus(app.id, 'cancelled')}
-                              >
-                                Cancel
-                              </button>
-                              
-                              {barberData && (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', width: '100%' }}>
+                              <div style={{ display: 'flex', gap: '12px', width: '100%', flexWrap: 'wrap' }} className="booking-card-actions">
                                 <button 
-                                  className="gold-glow-btn" 
-                                  style={{ flex: 1.5, padding: '10px', fontSize: '0.85rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
-                                  onClick={() => setActiveMapAppId(activeMapAppId === app.id ? null : app.id)}
+                                  className="btn-secondary" 
+                                  style={{ flex: 1, minWidth: '80px', padding: '10px', fontSize: '0.85rem' }}
+                                  onClick={() => {
+                                    setCancellingApp(app);
+                                    setCancelReasonOption('');
+                                    setCancelReasonText('');
+                                  }}
                                 >
-                                  <Compass size={14} /> {activeMapAppId === app.id ? 'Hide Map' : 'Track Route'}
+                                  Cancel
                                 </button>
-                              )}
+
+                                  {app.status === 'upcoming' && (() => {
+                                    const schedOpen = canReschedule(app.date, app.startTime);
+                                    return (
+                                      <button 
+                                        className="btn-secondary" 
+                                        style={{ 
+                                          flex: 1, 
+                                          minWidth: '90px', 
+                                          padding: '10px', 
+                                          fontSize: '0.85rem',
+                                          opacity: schedOpen ? 1 : 0.5,
+                                          cursor: schedOpen ? 'pointer' : 'not-allowed'
+                                        }}
+                                        onClick={() => {
+                                          if (!schedOpen) {
+                                            showToast('Modifications only allowed up to 5 minutes before scheduled start time.');
+                                            return;
+                                          }
+                                          handleOpenReschedule(app);
+                                        }}
+                                      >
+                                        Reschedule
+                                      </button>
+                                    );
+                                  })()}
+                                  
+                                  {barberData && (
+                                    <button 
+                                      className="gold-glow-btn" 
+                                      style={{ flex: 1.5, minWidth: '110px', padding: '10px', fontSize: '0.85rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
+                                      onClick={() => setActiveMapAppId(activeMapAppId === app.id ? null : app.id)}
+                                    >
+                                      <Compass size={14} /> {activeMapAppId === app.id ? 'Hide Map' : 'Track Route'}
+                                    </button>
+                                  )}
+                                </div>
                             </div>
 
                             {/* Integrated Telemetry Map View for Customer */}
@@ -881,7 +1283,7 @@ export default function App() {
                   <Scissors size={20} style={{ color: 'var(--accent-gold)' }} />
                   Premium Salons & Barber Artists
                 </h2>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(360px, 1fr))', gap: '24px' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(var(--grid-min-width, 360px), 1fr))', gap: '24px' }}>
                   {sortedBarbers.map((barber) => (
                     <div key={barber.id} className="glass-card gsap-card" style={{ display: 'flex', flexDirection: 'column' }}>
                       
@@ -949,17 +1351,18 @@ export default function App() {
               </div>
 
               {/* Past Appointments / Cuts History */}
-              {appointments.filter(app => app.customerId === currentUser.id && app.status !== 'upcoming').length > 0 && (
+              {appointments.filter(app => app.customerId === currentUser.id && (app.status === 'completed' || app.status === 'cancelled')).length > 0 && (
                 <div>
                   <h2 style={{ fontSize: '1.5rem', marginBottom: '20px', color: 'var(--text-secondary)' }}>
                     Your Cut History
                   </h2>
                   <div className="glass-card gsap-card" style={{ padding: '0 24px' }}>
-                    {appointments
-                      .filter((app) => app.customerId === currentUser.id && app.status !== 'upcoming')
+                    {sortPastAppointments(appointments
+                      .filter((app) => app.customerId === currentUser.id && (app.status === 'completed' || app.status === 'cancelled')))
                       .map((app, i) => (
                         <div 
                           key={app.id} 
+                          className="history-item"
                           style={{ 
                             display: 'flex', 
                             justifyContent: 'space-between', 
@@ -969,15 +1372,25 @@ export default function App() {
                           }}
                         >
                           <div>
-                            <h4 style={{ fontSize: '1.05rem' }}>{app.services.map(s => s.name).join(' + ')}</h4>
+                            <h4 style={{ fontSize: '1.05rem' }}>{app.services.map((s: any) => s.name).join(' + ')}</h4>
                             <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
                               Barber: {app.barberName} • Date: {app.date}
                             </p>
+                            {app.status === 'cancelled' && app.travelStatus && app.travelStatus.startsWith('Cancelled: ') && (
+                              <p style={{ fontSize: '0.8rem', color: 'var(--status-red)', marginTop: '4px', fontStyle: 'italic' }}>
+                                Reason: {app.travelStatus.replace('Cancelled: ', '')}
+                              </p>
+                            )}
                           </div>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                            <span style={{ fontWeight: 700, color: 'var(--accent-gold)' }}>₹{app.totalPrice}</span>
-                            <span className={`badge ${app.status === 'completed' ? 'badge-gold' : 'badge-red'}`}>
-                              {app.status}
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }} className="history-item-right">
+                            <div style={{ textAlign: 'right', display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
+                              <span style={{ fontWeight: 700, color: 'var(--accent-gold)' }}>₹{app.totalPrice}</span>
+                              <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>
+                                {app.paymentMethod === 'UPI Online' ? (app.paymentStatus === 'refunded' ? 'Refunded' : 'Online') : 'Cash'}
+                              </span>
+                            </div>
+                            <span className={`badge ${app.status === 'completed' ? 'badge-gold' : app.paymentStatus === 'refunded' ? 'badge-green' : 'badge-red'}`}>
+                              {app.paymentStatus === 'refunded' ? 'Refunded' : app.status}
                             </span>
                           </div>
                         </div>
@@ -1013,10 +1426,11 @@ export default function App() {
             </div>
 
             {/* Metrics cards */}
-            <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' }} className="barber-metrics-container">
               <div className="glass-card" style={{ padding: '16px 24px', textAlign: 'center', minWidth: '130px' }}>
                 <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Daily Earnings</span>
                 <h3 style={{ fontSize: '1.6rem', color: 'var(--accent-gold)', marginTop: '4px' }}>₹{dailyEarnings}</h3>
+                <span style={{ fontSize: '0.65rem', color: 'var(--text-secondary)' }}>Online: ₹{onlineEarnings} | Counter: ₹{counterEarnings}</span>
               </div>
               <div className="glass-card" style={{ padding: '16px 24px', textAlign: 'center', minWidth: '130px' }}>
                 <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Completed cuts</span>
@@ -1031,23 +1445,23 @@ export default function App() {
             </div>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '3fr 2fr', gap: '40px', alignItems: 'start' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'var(--barber-grid-cols, 3fr 2fr)', gap: 'var(--barber-grid-gap, 40px)', alignItems: 'start' }} className="barber-dashboard-layout">
             
             {/* Appointment Timeline */}
             <div>
               <h2 style={{ fontSize: '1.5rem', marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <Calendar size={20} style={{ color: 'var(--accent-gold)' }} />
-                Today's Schedule & Bookings
+                Active Schedule & Bookings
               </h2>
               
-              {activeBarberBookings.length === 0 ? (
+              {sortedBarberBookings.length === 0 ? (
                 <div className="glass-card gsap-card" style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--text-muted)' }}>
                   <Scissors size={40} style={{ marginBottom: '16px', opacity: 0.5 }} />
-                  <p>No bookings scheduled for today yet.</p>
+                  <p>No bookings scheduled yet.</p>
                 </div>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-                  {activeBarberBookings.map((app) => (
+                  {sortedBarberBookings.map((app) => (
                     <div 
                       key={app.id} 
                       className="glass-card gsap-card"
@@ -1058,8 +1472,8 @@ export default function App() {
                     >
                       <div style={{ display: 'flex', justifyContent: 'space-between', gap: '20px', alignItems: 'center', flexWrap: 'wrap', marginBottom: '16px' }}>
                         <div>
-                          <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', display: 'block' }}>APPOINTMENT TIME</span>
-                          <strong style={{ fontSize: '1.3rem', color: 'var(--text-primary)' }}>{app.startTime} - {app.endTime}</strong>
+                          <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', display: 'block' }}>APPOINTMENT DATE & TIME</span>
+                          <strong style={{ fontSize: '1.2rem', color: 'var(--text-primary)' }}>{app.date} • {app.startTime} - {app.endTime}</strong>
                           <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginLeft: '12px' }}>({app.totalDuration} mins)</span>
                         </div>
                         <div>
@@ -1068,6 +1482,25 @@ export default function App() {
                           </span>
                         </div>
                       </div>
+
+                      {app.status === 'cancelled' && app.travelStatus && app.travelStatus.startsWith('Cancelled: ') && (
+                        <div style={{ 
+                          background: 'rgba(239, 68, 68, 0.08)', 
+                          border: '1px solid rgba(239, 68, 68, 0.15)', 
+                          borderRadius: '10px', 
+                          padding: '12px', 
+                          marginBottom: '16px',
+                          color: 'var(--status-red)',
+                          fontSize: '0.85rem'
+                        }}>
+                          <strong>Appointment Cancelled:</strong> {app.travelStatus.replace('Cancelled: ', '')}
+                          {app.paymentStatus === 'refunded' && (
+                            <span style={{ display: 'block', marginTop: '4px', fontWeight: 600, color: 'var(--status-green)' }}>
+                              ✓ UPI Pre-payment Refunded (₹{app.totalPrice})
+                            </span>
+                          )}
+                        </div>
+                      )}
 
                       {/* Barber Transit Ticker */}
                       {app.notifications && app.notifications.length > 0 && (
@@ -1094,7 +1527,7 @@ export default function App() {
                         </div>
                       )}
 
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', margin: '16px 0', padding: '16px 0', borderTop: '1px solid var(--border-light)', borderBottom: '1px solid var(--border-light)' }}>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', margin: '16px 0', padding: '16px 0', borderTop: '1px solid var(--border-light)', borderBottom: '1px solid var(--border-light)' }} className="barber-appointment-details">
                         <div>
                           <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Customer</span>
                           <p style={{ fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -1110,29 +1543,63 @@ export default function App() {
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                         <div>
                           <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Subtotal</span>
-                          <span style={{ display: 'block', fontSize: '1.2rem', fontWeight: 700, color: 'var(--accent-gold)' }}>₹{app.totalPrice}</span>
+                          <span style={{ display: 'block', fontSize: '1.2rem', fontWeight: 700, color: 'var(--accent-gold)' }}>
+                            ₹{app.totalPrice} <span style={{ fontSize: '0.78rem', fontWeight: 500, color: app.paymentStatus === 'paid' ? 'var(--status-green)' : 'var(--status-amber)' }}>({app.paymentMethod === 'UPI Online' ? 'Prepaid Online' : 'Collect Cash/UPI'})</span>
+                          </span>
                         </div>
                         
                         {app.status === 'upcoming' && (
+                          <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+                              <button 
+                                className="btn-secondary"
+                                style={{ padding: '8px 16px', fontSize: '0.8rem' }}
+                                onClick={() => {
+                                  setCancellingApp(app);
+                                  setCancelReasonOption('');
+                                  setCancelReasonText('');
+                                }}
+                              >
+                                Cancel
+                              </button>
+                                <button 
+                                   className="gold-glow-btn"
+                                   style={{ 
+                                     padding: '8px 16px', 
+                                     fontSize: '0.8rem',
+                                     opacity: isCheckInWindowOpen(app.date, app.startTime, app.endTime) ? 1 : 0.5,
+                                     cursor: isCheckInWindowOpen(app.date, app.startTime, app.endTime) ? 'pointer' : 'not-allowed'
+                                   }}
+                                   onClick={() => {
+                                     if (!isCheckInWindowOpen(app.date, app.startTime, app.endTime)) {
+                                       showToast('Check-in is only allowed within 30 minutes of scheduled start time.');
+                                       return;
+                                     }
+                                     setActiveOtpApp(app);
+                                     setOtpInput('');
+                                     setOtpError('');
+                                     setOtpSuccess(false);
+                                   }}
+                                 >
+                                   Start Service (OTP)
+                                  </button>
+                          </div>
+                        )}
+
+                        {app.status === 'in_progress' && (
                           <div style={{ display: 'flex', gap: '12px' }}>
-                            <button 
-                              className="btn-secondary"
-                              style={{ padding: '8px 16px', fontSize: '0.8rem' }}
-                              onClick={() => updateAppointmentStatus(app.id, 'cancelled')}
-                            >
-                              Cancel
-                            </button>
                             <button 
                               className="gold-glow-btn"
                               style={{ padding: '8px 16px', fontSize: '0.8rem' }}
-                              onClick={() => {
-                                setActiveOtpApp(app);
-                                setOtpInput('');
-                                setOtpError('');
-                                setOtpSuccess(false);
+                              onClick={async () => {
+                                const res = await completeAppointment(app.id);
+                                if (res.success) {
+                                  showToast('Service completed successfully!');
+                                } else {
+                                  alert(res.message);
+                                }
                               }}
                             >
-                              Mark Completed
+                              Complete Service
                             </button>
                           </div>
                         )}
@@ -1147,6 +1614,7 @@ export default function App() {
                           <NavigateButton 
                             appointment={app} 
                             barber={activeBarber} 
+                            hideButton={true}
                           />
                         </div>
                       )}
@@ -1157,7 +1625,7 @@ export default function App() {
             </div>
 
             {/* Barber Status Delay Panel */}
-            <div className="glass-card gsap-card" style={{ position: 'sticky', top: '90px' }}>
+            <div className="glass-card gsap-card barber-status-panel" style={{ position: 'sticky', top: '90px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
                 <AlertCircle size={20} style={{ color: 'var(--accent-gold)' }} />
                 <h2 style={{ fontSize: '1.3rem' }}>Live Delay Console</h2>
@@ -1186,7 +1654,10 @@ export default function App() {
                   return (
                     <button 
                       key={idx}
-                      onClick={() => updateBarberDelay(activeBarber.id, btn.val)}
+                      onClick={() => {
+                        updateBarberDelay(activeBarber.id, btn.val);
+                        showToast(`Status updated: ${btn.label}`);
+                      }}
                       className={isActive ? 'gold-glow-btn' : 'btn-secondary'}
                       style={{ justifyContent: 'center', padding: '10px 0' }}
                     >
@@ -1208,7 +1679,7 @@ export default function App() {
       {isBookingOpen && selectedBarber && (
         <div className="modal-backdrop animate-fade-in" onClick={() => setIsBookingOpen(false)}>
           <div 
-            className="glass-card gsap-modal" 
+            className="glass-card gsap-modal booking-modal-content" 
             style={{ width: '100%', maxWidth: '580px', maxHeight: '90vh', overflowY: 'auto', opacity: 0 }}
             onClick={(e) => e.stopPropagation()}
           >
@@ -1218,9 +1689,11 @@ export default function App() {
               <div>
                 <h2 style={{ fontSize: '1.5rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <Scissors size={20} style={{ color: 'var(--accent-gold)' }} />
-                  Book Appointment
+                  {rescheduleApp ? 'Reschedule Appointment' : 'Book Appointment'}
                 </h2>
-                <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>Select services and time slot with {selectedBarber.name}</p>
+                <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
+                  {rescheduleApp ? `Change scheduled time with ${selectedBarber.name}` : `Select services and time slot with ${selectedBarber.name}`}
+                </p>
               </div>
               <button 
                 onClick={() => setIsBookingOpen(false)} 
@@ -1250,16 +1723,30 @@ export default function App() {
             <form onSubmit={handleConfirmBooking}>
               
               {/* Date Input */}
-              <div style={{ marginBottom: '20px' }}>
+              <div 
+                style={{ marginBottom: '20px' }}
+                title={isTimeSelectionDisabled ? "Rescheduling is not allowed within 30 minutes of booking start" : undefined}
+              >
                 <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '8px' }}>
-                  Select Date
+                  Select Date {isTimeSelectionDisabled && ' (Locked - within 30 mins of appointment)'}
                 </label>
                 <input 
                   type="date"
                   value={selectedDate}
                   min={new Date().toISOString().split('T')[0]}
                   onChange={(e) => setSelectedDate(e.target.value)}
-                  style={{ width: '100%', padding: '12px', background: 'var(--bg-tertiary)', border: '1px solid var(--border-light)', borderRadius: '10px', color: 'var(--text-primary)', outline: 'none' }}
+                  disabled={isTimeSelectionDisabled}
+                  style={{ 
+                    width: '100%', 
+                    padding: '12px', 
+                    background: 'var(--bg-tertiary)', 
+                    border: '1px solid var(--border-light)', 
+                    borderRadius: '10px', 
+                    color: 'var(--text-primary)', 
+                    outline: 'none',
+                    opacity: isTimeSelectionDisabled ? 0.6 : 1,
+                    cursor: isTimeSelectionDisabled ? 'not-allowed' : 'text'
+                  }}
                 />
               </div>
 
@@ -1313,50 +1800,122 @@ export default function App() {
               {selectedServiceIds.length > 0 && (
                 <div style={{ marginBottom: '24px' }}>
                   <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '8px' }}>
-                    Available Time Slots (Calculated for {totalDuration} mins slot)
+                    Available Time Slots (Calculated for {totalDuration} mins slot) {isTimeSelectionDisabled && ' (Locked - within 30 mins of appointment)'}
                   </label>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'var(--slot-grid-cols, repeat(4, 1fr))', gap: '8px' }} className="time-slot-grid">
                     {TIME_SLOTS.map((slot) => {
                       // Check double booking dynamic block
                       const [slotH, slotM] = slot.split(':').map(Number);
                       const slotStart = slotH * 60 + slotM;
                       const slotEnd = slotStart + totalDuration;
 
-                      const isBooked = appointments.some((app) => {
-                        if (app.barberId !== selectedBarber.id || app.date !== selectedDate || app.status === 'cancelled') return false;
-                        const [appSH, appSM] = app.startTime.split(':').map(Number);
-                        const [appEH, appEM] = app.endTime.split(':').map(Number);
-                        const appStart = appSH * 60 + appSM;
-                        const appEnd = appEH * 60 + appEM;
-                        return (slotStart < appEnd && slotEnd > appStart);
-                      });
+                      const capacity = selectedBarber.chairsCount || 2;
+                      let isBooked = false;
+
+                      for (let t = slotStart; t < slotEnd; t++) {
+                        let activeOverlaps = 0;
+                        for (const app of appointments) {
+                          if (app.barberId !== selectedBarber.id || app.date !== selectedDate || app.status === 'cancelled' || app.status === 'completed') continue;
+                          const [appSH, appSM] = app.startTime.split(':').map(Number);
+                          const [appEH, appEM] = app.endTime.split(':').map(Number);
+                          const appStart = appSH * 60 + appSM;
+                          const appEnd = appEH * 60 + appEM;
+
+                          if (t >= appStart && t < appEnd) {
+                            activeOverlaps++;
+                          }
+                        }
+                        if (activeOverlaps >= capacity) {
+                          isBooked = true;
+                          break;
+                        }
+                      }
+
+                      // Check if slot is too soon or in the past (if date is today, must be at least 30 mins in the future)
+                      let isTooSoon = false;
+                      const localDate = new Date();
+                      const y = localDate.getFullYear();
+                      const m = String(localDate.getMonth() + 1).padStart(2, '0');
+                      const d = String(localDate.getDate()).padStart(2, '0');
+                      const todayFormatted = `${y}-${m}-${d}`;
+
+                      if (selectedDate === todayFormatted) {
+                        const [h, min] = slot.split(':').map(Number);
+                        const slotTime = new Date(y, localDate.getMonth(), localDate.getDate(), h, min, 0);
+                        if (slotTime.getTime() - localDate.getTime() < 30 * 60 * 1000) {
+                          isTooSoon = true;
+                        }
+                      }
 
                       const isSelected = selectedTimeSlot === slot;
+                      const isDisabled = isBooked || isTimeSelectionDisabled || isTooSoon;
+
+                      const tooltipText = isTimeSelectionDisabled 
+                        ? "Rescheduling is not allowed within 30 minutes of booking start" 
+                        : isTooSoon 
+                          ? "New bookings must be scheduled at least 30 minutes in advance" 
+                          : isBooked 
+                            ? "Slot fully booked" 
+                            : undefined;
 
                       return (
-                        <button
-                          key={slot}
-                          type="button"
-                          disabled={isBooked}
-                          onClick={() => setSelectedTimeSlot(slot)}
-                          style={{
-                            padding: '10px 4px',
-                            borderRadius: '8px',
-                            border: isSelected ? '1px solid var(--accent-gold)' : '1px solid var(--border-light)',
-                            background: isSelected ? 'var(--accent-gold)' : isBooked ? 'transparent' : 'var(--bg-tertiary)',
-                            color: isSelected ? 'var(--bg-primary)' : isBooked ? 'var(--text-muted)' : 'var(--text-primary)',
-                            fontSize: '0.8rem',
-                            fontWeight: 600,
-                            cursor: isBooked ? 'not-allowed' : 'pointer',
-                            textDecoration: isBooked ? 'line-through' : 'none',
-                            opacity: isBooked ? 0.35 : 1,
-                            transition: 'all 0.2s ease'
-                          }}
+                        <span 
+                          key={slot} 
+                          title={tooltipText} 
+                          style={{ display: 'inline-block', width: '100%', cursor: isDisabled ? 'not-allowed' : 'default' }}
                         >
-                          {slot}
-                        </button>
+                          <button
+                            type="button"
+                            disabled={isDisabled}
+                            onClick={() => setSelectedTimeSlot(slot)}
+                            style={{
+                              width: '100%',
+                              padding: '10px 4px',
+                              borderRadius: '8px',
+                              border: isSelected ? '1px solid var(--accent-gold)' : '1px solid var(--border-light)',
+                              background: isSelected ? 'var(--accent-gold)' : isDisabled ? 'transparent' : 'var(--bg-tertiary)',
+                              color: isSelected ? 'var(--bg-primary)' : isDisabled ? 'var(--text-muted)' : 'var(--text-primary)',
+                              fontSize: '0.8rem',
+                              fontWeight: 600,
+                              cursor: isDisabled ? 'not-allowed' : 'pointer',
+                              textDecoration: isBooked ? 'line-through' : 'none',
+                              opacity: isBooked ? 0.35 : isDisabled ? 0.6 : 1,
+                              transition: 'all 0.2s ease',
+                              pointerEvents: isDisabled ? 'none' : 'auto' // Prevents the button from swallowing hover events in some browsers
+                            }}
+                          >
+                            {slot}
+                          </button>
+                        </span>
                       );
                     })}
+                  </div>
+                </div>
+              )}
+
+              {/* Payment selector UI */}
+              {selectedServiceIds.length > 0 && !rescheduleApp && (
+                <div style={{ marginBottom: '24px' }}>
+                  <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '8px' }}>
+                    Select Payment Option
+                  </label>
+                  <div style={{ display: 'flex', gap: '12px' }} className="payment-selector-container">
+                    <button
+                      type="button"
+                      onClick={() => setPaymentMethodOption('Pay At Shop')}
+                      className={paymentMethodOption === 'Pay At Shop' ? 'gold-glow-btn' : 'btn-secondary'}
+                      style={{ flex: 1, padding: '10px', justifyContent: 'center', fontSize: '0.85rem', gap: '8px' }}
+                    >
+                      <User size={14} /> Pay At Shop
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setPaymentMethodOption('UPI Online')}
+                      className={paymentMethodOption === 'UPI Online' ? 'gold-glow-btn' : 'btn-secondary'}
+                      style={{ flex: 1, padding: '10px', justifyContent: 'center', fontSize: '0.85rem', gap: '8px' }}
+                    >
+                      <Sparkles size={14} /> UPI Online
+                    </button>
                   </div>
                 </div>
               )}
@@ -1391,11 +1950,158 @@ export default function App() {
                   style={{ flex: 2, justifyContent: 'center' }}
                   disabled={!selectedTimeSlot || selectedServiceIds.length === 0}
                 >
-                  Confirm & Pay at Shop
+                  {rescheduleApp ? 'Confirm Reschedule' : 'Confirm & Pay at Shop'}
                 </button>
               </div>
 
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* ==========================================
+         UPI ONLINE PAYMENT SIMULATION MODAL
+         ========================================== */}
+      {showPaymentQrModal && selectedBarber && (
+        <div className="modal-backdrop animate-fade-in" onClick={() => {
+          if (!paymentUpiLoaderStatus) {
+            setShowPaymentQrModal(false);
+          }
+        }}>
+          <div 
+            className="glass-card otp-modal-content animate-scale-in" 
+            style={{ 
+              width: '100%', 
+              maxWidth: '460px', 
+              padding: '32px',
+              position: 'relative',
+              boxShadow: 'var(--shadow-premium), var(--shadow-glow)',
+              textAlign: 'center'
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Close Button */}
+            {!paymentUpiLoaderStatus && (
+              <button 
+                onClick={() => setShowPaymentQrModal(false)} 
+                style={{ position: 'absolute', right: '20px', top: '20px', background: 'transparent', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer' }}
+              >
+                <X size={20} />
+              </button>
+            )}
+
+            {/* Modal Header */}
+            <div style={{ marginBottom: '20px' }}>
+              <div style={{ display: 'inline-flex', padding: '12px', background: 'var(--accent-gold-glow)', borderRadius: '50%', color: 'var(--accent-gold)', marginBottom: '16px' }}>
+                <Sparkles size={24} />
+              </div>
+              <h2 style={{ fontSize: '1.4rem', textTransform: 'uppercase', letterSpacing: '-0.01em' }}>Scan & Pay via UPI</h2>
+              <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginTop: '4px' }}>
+                Complete secure payment to instantly confirm your appointment
+              </p>
+            </div>
+
+            {/* Merchant Details */}
+            <div style={{ background: 'var(--bg-tertiary)', border: '1px solid var(--border-light)', borderRadius: '12px', padding: '16px', marginBottom: '20px', fontSize: '0.9rem', textAlign: 'left' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}>
+                <span style={{ color: 'var(--text-muted)' }}>Styling Studio:</span>
+                <strong style={{ color: 'var(--text-primary)' }}>{selectedBarber.name}</strong>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}>
+                <span style={{ color: 'var(--text-muted)' }}>Date & Time:</span>
+                <strong style={{ color: 'var(--text-primary)' }}>{selectedDate} @ {selectedTimeSlot}</strong>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid var(--border-light)', paddingTop: '8px', marginTop: '8px' }}>
+                <span style={{ color: 'var(--text-muted)', fontWeight: 600 }}>Amount Pay:</span>
+                <strong style={{ color: 'var(--accent-gold)', fontWeight: 700 }}>₹{totalPrice}</strong>
+              </div>
+            </div>
+
+            {/* Payment Loader or Error */}
+            {paymentUpiLoaderStatus ? (
+              <div style={{ padding: '24px 0', minHeight: '200px', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', gap: '16px' }}>
+                <div style={{ width: '40px', height: '40px', border: '4px solid var(--border-light)', borderTopColor: 'var(--accent-gold)', borderRadius: '50%' }} className="spin-animation"></div>
+                <p style={{ color: 'var(--accent-gold)', fontWeight: 600, fontSize: '0.95rem' }}>{paymentUpiLoaderStatus}</p>
+              </div>
+            ) : paymentUpiError ? (
+              <div style={{ padding: '16px 0' }}>
+                <div style={{ background: 'rgba(239, 68, 68, 0.08)', color: 'var(--status-red)', border: '1px solid rgba(239, 68, 68, 0.15)', padding: '16px', borderRadius: '12px', marginBottom: '20px', fontSize: '0.88rem' }}>
+                  <AlertCircle size={24} style={{ margin: '0 auto 8px', display: 'block' }} />
+                  <strong>Payment Failed</strong>
+                  <p style={{ fontSize: '0.8rem', marginTop: '4px' }}>{paymentUpiError}</p>
+                </div>
+                <div style={{ display: 'flex', gap: '12px' }}>
+                  <button
+                    className="btn-secondary"
+                    style={{ flex: 1 }}
+                    onClick={() => {
+                      setPaymentUpiError('');
+                      setPaymentMethodOption('Pay At Shop');
+                      setShowPaymentQrModal(false);
+                      setIsBookingOpen(true);
+                    }}
+                  >
+                    Pay at Shop
+                  </button>
+                  <button
+                    className="gold-glow-btn"
+                    style={{ flex: 1.5, justifyContent: 'center' }}
+                    onClick={() => {
+                      setPaymentUpiError('');
+                    }}
+                  >
+                    Retry Scan
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div>
+                {/* SVG Stylized UPI QR Code */}
+                <div style={{ position: 'relative', width: '180px', height: '180px', margin: '0 auto 20px', background: '#ffffff', padding: '12px', borderRadius: '16px', display: 'flex', justifyContent: 'center', alignItems: 'center', boxShadow: '0 8px 24px rgba(0,0,0,0.1)' }}>
+                  <svg width="100%" height="100%" viewBox="0 0 100 100" style={{ shapeRendering: 'crispEdges' }}>
+                    {/* Mock QR lines */}
+                    <path d="M 0,0 L 25,0 L 25,25 L 0,25 Z M 10,10 L 15,10 L 15,15 L 10,15 Z" fill="#000" transform="scale(1.2)" />
+                    <path d="M 50,0 L 75,0 L 75,25 L 50,25 Z M 60,10 L 65,10 L 65,15 L 60,15 Z" fill="#000" transform="scale(1.2)" />
+                    <path d="M 0,50 L 25,50 L 25,75 L 0,75 Z M 10,60 L 15,60 L 15,65 L 10,65 Z" fill="#000" transform="scale(1.2)" />
+                    <path d="M 35,35 H 48 V 48 H 35 Z M 5,35 H 18 V 48 H 5 Z M 35,5 H 48 V 18 H 35 Z" fill="#c5a880" />
+                    <path d="M 28,28 H 38 V 38 H 28 Z M 42,42 H 58 V 58 H 42 Z M 62,62 H 78 V 78 H 62 Z" fill="#000" />
+                    <path d="M 50,50 H 65 V 65 H 50 Z M 70,28 H 80 V 38 H 70 Z M 28,70 H 38 V 80 H 28 Z" fill="#c5a880" />
+                  </svg>
+                  {/* Scan Line Overlay */}
+                  <div style={{ position: 'absolute', left: '12px', right: '12px', height: '2px', background: 'var(--accent-gold)', top: '12px', boxShadow: '0 0 8px var(--accent-gold)', animation: 'radarPing 2s infinite ease-in-out' }}></div>
+                </div>
+
+                <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '24px' }}>
+                  <p>Scan using BHIM, Google Pay, PhonePe, or Paytm</p>
+                  <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '4px' }}>UPI ID: <strong>barbo.pay@axisbank</strong></p>
+                </div>
+
+                {/* Simulation controls */}
+                <div style={{ borderTop: '1px dashed var(--border-light)', paddingTop: '20px', marginTop: '20px' }}>
+                  <span style={{ fontSize: '0.7rem', fontWeight: 600, color: 'var(--text-secondary)', display: 'block', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '12px' }}>
+                    Payment Simulation Triggers
+                  </span>
+                  <div style={{ display: 'flex', gap: '10px' }}>
+                    <button
+                      type="button"
+                      className="btn-danger"
+                      style={{ flex: 1, padding: '10px', fontSize: '0.8rem', justifyContent: 'center' }}
+                      onClick={() => handleConfirmUpiBooking(false)}
+                    >
+                      Simulate Failure
+                    </button>
+                    <button
+                      type="button"
+                      className="gold-glow-btn"
+                      style={{ flex: 1.5, padding: '10px', fontSize: '0.8rem', justifyContent: 'center' }}
+                      onClick={() => handleConfirmUpiBooking(true)}
+                    >
+                      Simulate Success
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -1429,8 +2135,8 @@ export default function App() {
               <div style={{ display: 'inline-flex', padding: '12px', background: 'var(--accent-gold-glow)', borderRadius: '50%', color: 'var(--accent-gold)', marginBottom: '16px' }}>
                 <Key size={24} />
               </div>
-              <h2 style={{ fontSize: '1.5rem', textTransform: 'uppercase', letterSpacing: '-0.01em' }}>Secure Handshake</h2>
-              <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginTop: '4px' }}>Verify customer travel OTP code to checkout</p>
+              <h2 style={{ fontSize: '1.5rem', textTransform: 'uppercase', letterSpacing: '-0.01em' }}>Secure Check-in</h2>
+              <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginTop: '4px' }}>Verify customer check-in OTP code to start service</p>
             </div>
 
             {/* Summary Box */}
@@ -1458,23 +2164,18 @@ export default function App() {
             {otpSuccess ? (
               <div style={{ background: 'rgba(56, 189, 248, 0.08)', color: 'var(--status-green)', border: '1px solid rgba(56, 189, 248, 0.15)', padding: '16px', borderRadius: '12px', textAlign: 'center' }}>
                 <CheckCircle size={32} style={{ margin: '0 auto 8px', display: 'block' }} />
-                <strong>Handshake Verified!</strong>
-                <p style={{ fontSize: '0.8rem', marginTop: '4px' }}>Checkout authorized. Booking completed.</p>
+                <strong>Check-in Verified!</strong>
+                <p style={{ fontSize: '0.8rem', marginTop: '4px' }}>Service check-in authorized. Service started.</p>
               </div>
             ) : (
               <form onSubmit={async (e) => {
                 e.preventDefault();
                 setOtpError('');
                 
-                const res = await completeAppointmentWithOtp(activeOtpApp.id, otpInput.trim());
+                const res = await startAppointmentWithOtp(activeOtpApp.id, otpInput.trim());
                 if (res.success) {
                   setOtpSuccess(true);
-                  const currentNotifs = activeOtpApp.notifications || [];
-                  updateAppointmentTelemetry(activeOtpApp.id, {
-                    notifications: [...currentNotifs, "OTP confirmed. Transaction completed successfully!"]
-                  });
-                  updateAppointmentStatus(activeOtpApp.id, 'completed');
-                  
+                  showToast('Service started successfully!');
                   setTimeout(() => {
                     setActiveOtpApp(null);
                     setOtpSuccess(false);
@@ -1550,6 +2251,209 @@ export default function App() {
               </form>
             )}
 
+          </div>
+        </div>
+      )}
+
+      {/* ==========================================
+          CANCELLATION REASON MODAL
+          ========================================== */}
+      {cancellingApp && (
+        <div className="modal-backdrop animate-fade-in" onClick={() => setCancellingApp(null)}>
+          <div 
+            className="glass-card" 
+            style={{ 
+              width: '100%', 
+              maxWidth: '480px', 
+              padding: '32px',
+              position: 'relative',
+              boxShadow: 'var(--shadow-premium), var(--shadow-glow)',
+              maxHeight: '90vh',
+              overflowY: 'auto'
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Close Button */}
+            <button 
+              onClick={() => setCancellingApp(null)} 
+              style={{ position: 'absolute', right: '20px', top: '20px', background: 'transparent', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer' }}
+            >
+              <X size={20} />
+            </button>
+
+            {/* Modal Header */}
+            <div style={{ textAlign: 'center', marginBottom: '24px' }}>
+              <div style={{ display: 'inline-flex', padding: '12px', background: 'rgba(239, 68, 68, 0.08)', border: '1px solid rgba(239, 68, 68, 0.15)', borderRadius: '50%', color: 'var(--status-red)', marginBottom: '16px' }}>
+                <AlertTriangle size={24} />
+              </div>
+              <h2 style={{ fontSize: '1.4rem', textTransform: 'uppercase', letterSpacing: '-0.01em', color: 'var(--status-red)' }}>Cancel Appointment</h2>
+              <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginTop: '4px' }}>
+                Please provide a reason for cancelling this appointment.
+              </p>
+            </div>
+
+            {/* Appointment Details Preview */}
+            <div style={{ background: 'var(--bg-tertiary)', border: '1px solid var(--border-light)', borderRadius: '12px', padding: '14px', marginBottom: '20px', fontSize: '0.85rem' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}>
+                <span style={{ color: 'var(--text-muted)' }}>{currentUser?.role === 'customer' ? 'Barber:' : 'Customer:'}</span>
+                <strong style={{ color: 'var(--text-primary)' }}>{currentUser?.role === 'customer' ? cancellingApp.barberName : cancellingApp.customerName}</strong>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span style={{ color: 'var(--text-muted)' }}>Time:</span>
+                <strong style={{ color: 'var(--text-primary)' }}>{cancellingApp.date} • {cancellingApp.startTime}</strong>
+              </div>
+            </div>
+
+            {/* Reasons Form */}
+            <div>
+              <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '10px' }}>
+                Select a reason
+              </label>
+              
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '20px' }}>
+                {(currentUser?.role === 'customer' ? [
+                  "Change of plans",
+                  "Emergency came up",
+                  "Booked by mistake / wrong slot",
+                  "Barber running too late"
+                ] : [
+                  "Personal emergency",
+                  "Power outage / technical issue at shop",
+                  "Double booked / scheduling conflict",
+                  "Customer didn't arrive on time"
+                ]).map((reason) => (
+                  <label 
+                    key={reason}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '10px',
+                      padding: '12px 16px',
+                      background: cancelReasonOption === reason ? 'rgba(255, 255, 255, 0.04)' : 'transparent',
+                      border: `1px solid ${cancelReasonOption === reason ? 'var(--accent-gold)' : 'var(--border-light)'}`,
+                      borderRadius: '8px',
+                      cursor: 'pointer',
+                      fontSize: '0.88rem',
+                      color: 'var(--text-primary)',
+                      transition: 'all 0.2s ease'
+                    }}
+                  >
+                    <input 
+                      type="radio" 
+                      name="cancelReason" 
+                      value={reason} 
+                      checked={cancelReasonOption === reason} 
+                      onChange={(e) => {
+                        setCancelReasonOption(e.target.value);
+                      }}
+                      style={{ accentColor: 'var(--accent-gold)' }}
+                    />
+                    <span>{reason}</span>
+                  </label>
+                ))}
+
+                <label 
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '10px',
+                    padding: '12px 16px',
+                    background: cancelReasonOption === 'other' ? 'rgba(255, 255, 255, 0.04)' : 'transparent',
+                    border: `1px solid ${cancelReasonOption === 'other' ? 'var(--accent-gold)' : 'var(--border-light)'}`,
+                    borderRadius: '8px',
+                    cursor: 'pointer',
+                    fontSize: '0.88rem',
+                    color: 'var(--text-primary)',
+                    transition: 'all 0.2s ease'
+                  }}
+                >
+                  <input 
+                    type="radio" 
+                    name="cancelReason" 
+                    value="other" 
+                    checked={cancelReasonOption === 'other'} 
+                    onChange={(e) => {
+                      setCancelReasonOption(e.target.value);
+                    }}
+                    style={{ accentColor: 'var(--accent-gold)' }}
+                  />
+                  <span>Other (Write custom reason)</span>
+                </label>
+              </div>
+
+              {cancelReasonOption === 'other' && (
+                <div style={{ marginBottom: '24px' }} className="animate-fade-in">
+                  <textarea
+                    placeholder="Describe the reason for cancellation..."
+                    value={cancelReasonText}
+                    onChange={(e) => setCancelReasonText(e.target.value)}
+                    rows={3}
+                    style={{
+                      width: '100%',
+                      padding: '12px',
+                      background: 'var(--bg-tertiary)',
+                      border: '1px solid var(--border-light)',
+                      borderRadius: '8px',
+                      color: 'var(--text-primary)',
+                      fontSize: '0.88rem',
+                      outline: 'none',
+                      resize: 'none'
+                    }}
+                  />
+                </div>
+              )}
+
+              {/* Action Buttons */}
+              <div style={{ display: 'flex', gap: '12px' }}>
+                <button
+                  className="btn-secondary"
+                  style={{ flex: 1, padding: '12px', justifyContent: 'center' }}
+                  onClick={() => setCancellingApp(null)}
+                >
+                  Keep Booking
+                </button>
+                <button
+                  className="btn-danger"
+                  style={{ 
+                    flex: 1, 
+                    padding: '12px', 
+                    justifyContent: 'center',
+                    opacity: (!cancelReasonOption || (cancelReasonOption === 'other' && !cancelReasonText.trim())) ? 0.5 : 1,
+                    cursor: (!cancelReasonOption || (cancelReasonOption === 'other' && !cancelReasonText.trim())) ? 'not-allowed' : 'pointer'
+                  }}
+                  disabled={!cancelReasonOption || (cancelReasonOption === 'other' && !cancelReasonText.trim())}
+                  onClick={async () => {
+                    const finalReason = cancelReasonOption === 'other' ? cancelReasonText.trim() : cancelReasonOption;
+                    cancelledAppIdsRef.current.add(cancellingApp.id);
+                    const isPaid = cancellingApp.paymentStatus === 'paid';
+                    await updateAppointmentStatus(cancellingApp.id, 'cancelled', finalReason);
+                    setCancellingApp(null);
+                    if (isPaid) {
+                      showToast(`Appointment cancelled. Refund of ₹${cancellingApp.totalPrice} initiated!`);
+                    } else {
+                      showToast('Appointment cancelled successfully.');
+                    }
+                  }}
+                >
+                  Confirm Cancel
+                </button>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      )}
+
+      {/* Toast Notification */}
+      {toastMsg && (
+        <div className="toast-container animate-fade-in">
+          <div className="toast-card">
+            {toastMsg.toLowerCase().includes('cancel') ? (
+              <AlertCircle size={18} style={{ color: 'var(--status-red)' }} />
+            ) : (
+              <CheckCircle size={18} style={{ color: 'var(--accent-gold)' }} />
+            )}
+            <span>{toastMsg}</span>
           </div>
         </div>
       )}

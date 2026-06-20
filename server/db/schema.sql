@@ -37,7 +37,8 @@ CREATE TABLE IF NOT EXISTS barbers (
   distance_meters INT NOT NULL,
   lead_stylist VARCHAR(100) NOT NULL,
   lat DECIMAL(9,6) NOT NULL,
-  lon DECIMAL(9,6) NOT NULL
+  lon DECIMAL(9,6) NOT NULL,
+  chairs_count INT DEFAULT 2
 );
 
 -- 4. Barber Portfolio Gallery Table
@@ -60,7 +61,9 @@ CREATE TABLE IF NOT EXISTS appointments (
   end_time TIME NOT NULL,
   total_price INT NOT NULL,
   total_duration INT NOT NULL,
-  status ENUM('upcoming', 'completed', 'cancelled') NOT NULL DEFAULT 'upcoming',
+  status ENUM('upcoming', 'in_progress', 'completed', 'cancelled') NOT NULL DEFAULT 'upcoming',
+  payment_method VARCHAR(50) DEFAULT 'Pay At Shop',
+  payment_status VARCHAR(50) DEFAULT 'unpaid',
   travel_otp VARCHAR(4) NOT NULL,
   user_lat DECIMAL(9,6) NULL,
   user_lon DECIMAL(9,6) NULL,
@@ -95,6 +98,20 @@ CREATE TABLE IF NOT EXISTS appointment_notifications (
   FOREIGN KEY (appointment_id) REFERENCES appointments(id) ON DELETE CASCADE
 );
 
+-- 8. Reviews Table
+CREATE TABLE IF NOT EXISTS reviews (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  appointment_id VARCHAR(50) UNIQUE NOT NULL,
+  barber_id VARCHAR(50) NOT NULL,
+  customer_id VARCHAR(50) NOT NULL,
+  rating INT NOT NULL,
+  comment TEXT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (appointment_id) REFERENCES appointments(id) ON DELETE CASCADE,
+  FOREIGN KEY (barber_id) REFERENCES barbers(id) ON DELETE CASCADE,
+  FOREIGN KEY (customer_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
 
 -- =========================================================================
 -- INITIAL SEED DATA
@@ -110,16 +127,16 @@ INSERT INTO services (id, name, description, price, duration_minutes) VALUES
 ON DUPLICATE KEY UPDATE name=VALUES(name), description=VALUES(description), price=VALUES(price), duration_minutes=VALUES(duration_minutes);
 
 -- Seed Barbers
-INSERT INTO barbers (id, name, title, specialty, rating, reviews_count, image_url, delay_status, location, maps_url, distance_meters, lead_stylist, lat, lon) VALUES
-('b1', 'Looks Salon', 'Premium Professional Grooming', 'High-End Scissor Cuts & Premium Treatments', 4.9, 310, 'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?auto=format&fit=crop&q=80&w=250&h=250', 'On Time', 'DB City Mall, MP Nagar, Bhopal', 'https://www.google.com/maps/search/?api=1&query=Looks+Salon+DB+City+Mall+Bhopal', 2000, 'Senior Stylist', 23.232696, 77.429901),
-('b2', 'Dreamland Salon & Skin Care', 'Popular MP Nagar Salon', 'Textured Fades & Skin Care', 4.8, 142, 'https://images.unsplash.com/photo-1501196354995-cbb51c65aaea?auto=format&fit=crop&q=80&w=250&h=250', 'On Time', 'Shop No. 52, Zone-II, MP Nagar, Bhopal', 'https://www.google.com/maps/search/?api=1&query=Dreamland+Salon+MP+Nagar+Bhopal', 1800, 'Master Stylist', 23.231500, 77.432000),
-('b3', 'Ideal Family Salon', 'Family Oriented Care', 'Classic Family Styling & Treatments', 4.7, 185, 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&q=80&w=250&h=250', 'On Time', 'Arera Colony, Bhopal', 'https://www.google.com/maps/search/?api=1&query=Ideal+Family+Salon+Arera+Colony+Bhopal', 3000, 'Deepali Sen', 23.220872, 77.429364),
-('b4', 'Magic Hands Salon', 'Mens & Womens Grooming', 'Precision Clipper Cuts & Detan', 4.5, 95, 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=250&h=250', 'On Time', 'Karond, Bhopal', 'https://www.google.com/maps/search/?api=1&query=Magic+Hands+Salon+Karond+Bhopal', 6000, 'Vicky Kumar', 23.297422, 77.402544),
-('b5', 'Mirrors Unisex Salon', 'Beauty & Hair Care', 'Hair Botox & Professional Coloring', 4.6, 120, 'https://images.unsplash.com/photo-1566492031773-4f4e44671857?auto=format&fit=crop&q=80&w=250&h=250', 'On Time', 'Airport Road, Bhopal', 'https://www.google.com/maps/search/?api=1&query=Mirrors+Unisex+Salon+Airport+Road+Bhopal', 7000, 'Sameer Khan', 23.291797, 77.353161),
-('b6', '7 Styles Salon', 'Men\'s Grooming Specialist', 'Beard Styling & Modern Fades', 4.8, 205, 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&q=80&w=250&h=250', 'On Time', 'Arera Colony, Bhopal', 'https://www.google.com/maps/search/?api=1&query=7+Styles+Salon+Arera+Colony+Bhopal', 3100, 'Vikram Malhotra', 23.218800, 77.425300),
-('b7', 'Hemant\'s Salon', 'Strong Grooming Reputation', 'Traditional Hot Towel Shave & Champi', 4.7, 150, 'https://images.unsplash.com/photo-1522075469751-3a6694fb2f61?auto=format&fit=crop&q=80&w=250&h=250', 'On Time', 'Surendra Palace, Narayan Nagar, Bhopal', 'https://www.google.com/maps/search/?api=1&query=Hemant+Salon+Surendra+Palace+Bhopal', 6500, 'Hemant Sen', 23.197000, 77.447000),
-('b8', 'Vishal The Barber Shop', 'Local Mens Grooming', 'Buzzcuts, Trimming & Oil Massages', 4.4, 88, 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&q=80&w=250&h=250', 'On Time', 'Bagh Swaniya, Bhopal', 'https://www.google.com/maps/search/?api=1&query=Vishal+The+Barber+Shop+Bagh+Swaniya+Bhopal', 5500, 'Vishal Kumar', 23.208500, 77.452000)
-ON DUPLICATE KEY UPDATE name=VALUES(name), title=VALUES(title), specialty=VALUES(specialty), rating=VALUES(rating), reviews_count=VALUES(reviews_count), image_url=VALUES(image_url), location=VALUES(location), maps_url=VALUES(maps_url), distance_meters=VALUES(distance_meters), lead_stylist=VALUES(lead_stylist), lat=VALUES(lat), lon=VALUES(lon);
+INSERT INTO barbers (id, name, title, specialty, rating, reviews_count, image_url, delay_status, location, maps_url, distance_meters, lead_stylist, lat, lon, chairs_count) VALUES
+('b1', 'Looks Salon', 'Premium Professional Grooming', 'High-End Scissor Cuts & Premium Treatments', 4.9, 310, 'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?auto=format&fit=crop&q=80&w=250&h=250', 'On Time', 'DB City Mall, MP Nagar, Bhopal', 'https://www.google.com/maps/search/?api=1&query=Looks+Salon+DB+City+Mall+Bhopal', 2000, 'Senior Stylist', 23.232696, 77.429901, 3),
+('b2', 'Dreamland Salon & Skin Care', 'Popular MP Nagar Salon', 'Textured Fades & Skin Care', 4.8, 142, 'https://images.unsplash.com/photo-1501196354995-cbb51c65aaea?auto=format&fit=crop&q=80&w=250&h=250', 'On Time', 'Shop No. 52, Zone-II, MP Nagar, Bhopal', 'https://www.google.com/maps/search/?api=1&query=Dreamland+Salon+MP+Nagar+Bhopal', 1800, 'Master Stylist', 23.231500, 77.432000, 2),
+('b3', 'Ideal Family Salon', 'Family Oriented Care', 'Classic Family Styling & Treatments', 4.7, 185, 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&q=80&w=250&h=250', 'On Time', 'Arera Colony, Bhopal', 'https://www.google.com/maps/search/?api=1&query=Ideal+Family+Salon+Arera+Colony+Bhopal', 3000, 'Deepali Sen', 23.220872, 77.429364, 3),
+('b4', 'Magic Hands Salon', 'Mens & Womens Grooming', 'Precision Clipper Cuts & Detan', 4.5, 95, 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=250&h=250', 'On Time', 'Karond, Bhopal', 'https://www.google.com/maps/search/?api=1&query=Magic+Hands+Salon+Karond+Bhopal', 6000, 'Vicky Kumar', 23.297422, 77.402544, 2),
+('b5', 'Mirrors Unisex Salon', 'Beauty & Hair Care', 'Hair Botox & Professional Coloring', 4.6, 120, 'https://images.unsplash.com/photo-1566492031773-4f4e44671857?auto=format&fit=crop&q=80&w=250&h=250', 'On Time', 'Airport Road, Bhopal', 'https://www.google.com/maps/search/?api=1&query=Mirrors+Unisex+Salon+Airport+Road+Bhopal', 7000, 'Sameer Khan', 23.291797, 77.353161, 4),
+('b6', '7 Styles Salon', 'Men\'s Grooming Specialist', 'Beard Styling & Modern Fades', 4.8, 205, 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&q=80&w=250&h=250', 'On Time', 'Arera Colony, Bhopal', 'https://www.google.com/maps/search/?api=1&query=7+Styles+Salon+Arera+Colony+Bhopal', 3100, 'Vikram Malhotra', 23.218800, 77.425300, 2),
+('b7', 'Hemant\'s Salon', 'Strong Grooming Reputation', 'Traditional Hot Towel Shave & Champi', 4.7, 150, 'https://images.unsplash.com/photo-1522075469751-3a6694fb2f61?auto=format&fit=crop&q=80&w=250&h=250', 'On Time', 'Surendra Palace, Narayan Nagar, Bhopal', 'https://www.google.com/maps/search/?api=1&query=Hemant+Salon+Surendra+Palace+Bhopal', 6500, 'Hemant Sen', 23.197000, 77.447000, 2),
+('b8', 'Vishal The Barber Shop', 'Local Mens Grooming', 'Buzzcuts, Trimming & Oil Massages', 4.4, 88, 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&q=80&w=250&h=250', 'On Time', 'Bagh Swaniya, Bhopal', 'https://www.google.com/maps/search/?api=1&query=Vishal+The+Barber+Shop+Bagh+Swaniya+Bhopal', 5500, 'Vishal Kumar', 23.208500, 77.452000, 2)
+ON DUPLICATE KEY UPDATE name=VALUES(name), title=VALUES(title), specialty=VALUES(specialty), rating=VALUES(rating), reviews_count=VALUES(reviews_count), image_url=VALUES(image_url), location=VALUES(location), maps_url=VALUES(maps_url), distance_meters=VALUES(distance_meters), lead_stylist=VALUES(lead_stylist), lat=VALUES(lat), lon=VALUES(lon), chairs_count=VALUES(chairs_count);
 
 -- Seed Barber Portfolio Galleries
 INSERT INTO barber_portfolio (barber_id, image_url) VALUES
