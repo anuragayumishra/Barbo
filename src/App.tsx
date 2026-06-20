@@ -186,6 +186,7 @@ export default function App() {
   const { 
     currentUser,
     login,
+    signup,
     logout,
     barbers, 
     services, 
@@ -259,6 +260,8 @@ export default function App() {
   };
 
   // Login Form States
+  const [isSignup, setIsSignup] = useState(false);
+  const [signupName, setSignupName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loginError, setLoginError] = useState('');
@@ -528,20 +531,29 @@ export default function App() {
     setLoginError('');
   };
 
-  // Handle Login Submission
+  // Handle Login/Signup Submission
   const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSignup && !signupName.trim()) {
+      setLoginError('Please enter your name.');
+      return;
+    }
     if (!email || !password) {
       setLoginError('Please enter both email and password.');
       return;
     }
 
-    const res = await login(email, password);
+    const res = isSignup 
+      ? await signup(signupName, email, password)
+      : await login(email, password);
+
     if (res.success) {
       setLoginError('');
-      // Wipe login inputs
+      // Wipe login/signup inputs
       setEmail('');
+      setSignupName('');
       setPassword('');
+      setIsSignup(false);
     } else {
       setLoginError(res.message);
     }
@@ -792,6 +804,24 @@ export default function App() {
 
           {/* Form */}
           <form onSubmit={handleLoginSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+            {isSignup && (
+              <div>
+                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '8px' }}>
+                  Full Name
+                </label>
+                <div style={{ position: 'relative' }}>
+                  <User size={16} style={{ position: 'absolute', left: '14px', top: '15px', color: 'var(--text-muted)' }} />
+                  <input 
+                    type="text"
+                    placeholder="John Doe"
+                    value={signupName}
+                    onChange={(e) => setSignupName(e.target.value)}
+                    style={{ width: '100%', padding: '12px 16px 12px 42px', background: 'var(--bg-tertiary)', border: '1px solid var(--border-light)', borderRadius: '12px', color: 'var(--text-primary)', outline: 'none', fontSize: '0.95rem' }}
+                  />
+                </div>
+              </div>
+            )}
+
             <div>
               <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '8px' }}>
                 Email Address
@@ -829,9 +859,24 @@ export default function App() {
               className="gold-glow-btn"
               style={{ justifyContent: 'center', marginTop: '10px', padding: '14px' }}
             >
-              Sign In
+              {isSignup ? 'Create Account' : 'Sign In'}
             </button>
           </form>
+
+          <div style={{ textAlign: 'center', marginTop: '16px', fontSize: '0.85rem' }}>
+            <span style={{ color: 'var(--text-secondary)' }}>
+              {isSignup ? 'Already have an account? ' : "Don't have an account? "}
+            </span>
+            <span 
+              onClick={() => {
+                setIsSignup(!isSignup);
+                setLoginError('');
+              }} 
+              style={{ color: 'var(--accent-gold)', cursor: 'pointer', fontWeight: 600, textDecoration: 'underline' }}
+            >
+              {isSignup ? 'Sign In' : 'Sign Up'}
+            </span>
+          </div>
 
           {/* Quick Grading Autocompletes */}
           <div style={{ marginTop: '30px', borderTop: '1px solid var(--border-light)', paddingTop: '24px' }}>

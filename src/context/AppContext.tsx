@@ -74,6 +74,7 @@ export interface User {
 interface AppContextType {
   currentUser: User | null;
   login: (email: string, password: string) => Promise<{ success: boolean; message: string }>;
+  signup: (name: string, email: string, password: string) => Promise<{ success: boolean; message: string }>;
   logout: () => void;
   barbers: Barber[];
   services: Service[];
@@ -642,6 +643,47 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     }
   };
 
+  const signup = async (name: string, email: string, password: string) => {
+    try {
+      const res = await fetch(`${BASE_URL}/auth/signup`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, email, password })
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setCurrentUser(data.user);
+        return { success: true, message: 'Registration successful!' };
+      } else {
+        return { success: false, message: data.message || 'Registration failed' };
+      }
+    } catch (err) {
+      console.warn("Express server offline, running fallback local credential creator.");
+      const trimmedEmail = email.trim().toLowerCase();
+      const exists = MOCK_USERS.some((u) => u.email === trimmedEmail);
+      if (exists) {
+        return { success: false, message: 'Email already registered.' };
+      }
+
+      const newUserId = `cust-${Date.now()}`;
+      const newUser: User = {
+        id: newUserId,
+        email: trimmedEmail,
+        name: name.trim(),
+        role: 'customer'
+      };
+
+      MOCK_USERS.push({
+        email: trimmedEmail,
+        pass: password,
+        user: newUser
+      });
+
+      setCurrentUser(newUser);
+      return { success: true, message: 'Registration successful! (Offline Fallback)' };
+    }
+  };
+
   const logout = () => {
     setCurrentUser(null);
   };
@@ -1096,6 +1138,7 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       value={{
         currentUser,
         login,
+        signup,
         logout,
         barbers,
         services: INITIAL_SERVICES,

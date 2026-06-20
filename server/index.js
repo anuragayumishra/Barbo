@@ -85,6 +85,43 @@ app.post('/api/auth/login', async (req, res) => {
   }
 });
 
+// 1.5. Auth Signup Route
+app.post('/api/auth/signup', async (req, res) => {
+  const { name, email, password } = req.body;
+  if (!name || !email || !password) {
+    return res.status(400).json({ success: false, message: 'Name, email and password are required' });
+  }
+
+  try {
+    const trimmedEmail = email.trim().toLowerCase();
+    const [existing] = await pool.query('SELECT id FROM users WHERE email = ?', [trimmedEmail]);
+    if (existing.length > 0) {
+      return res.status(400).json({ success: false, message: 'Email is already registered' });
+    }
+
+    const userId = `cust-${Date.now()}`;
+    await pool.query(
+      'INSERT INTO users (id, email, password, name, role) VALUES (?, ?, ?, ?, ?)',
+      [userId, trimmedEmail, password, name.trim(), 'customer']
+    );
+
+    res.status(201).json({
+      success: true,
+      message: 'Registration successful!',
+      user: {
+        id: userId,
+        email: trimmedEmail,
+        name: name.trim(),
+        role: 'customer',
+        barberId: null
+      }
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+
 // 2. Services List Retriever
 app.get('/api/services', async (req, res) => {
   try {
