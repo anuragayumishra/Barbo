@@ -10,6 +10,7 @@ export interface Service {
   description: string;
   price: number;
   durationMinutes: number;
+  barberId?: string;
 }
 
 export interface Barber {
@@ -67,7 +68,7 @@ export interface User {
   id: string;
   email: string;
   name: string;
-  role: 'customer' | 'barber';
+  role: 'customer' | 'barber' | 'admin';
   barberId?: string; // Links a barber user to their barber profile
 }
 
@@ -97,6 +98,14 @@ interface AppContextType {
   setIsMapLoading: (loading: boolean) => void;
   fetchLocalBarbers: (lat: number, lng: number, searchName?: string) => Promise<void>;
   resetBarbersToDefault: () => void;
+
+  // Onboarding & Admin Panel API functions
+  submitApplication: (appData: any, services: any[]) => Promise<{ success: boolean; message: string }>;
+  checkApplicationStatus: (email: string) => Promise<{ success: boolean; application: any }>;
+  adminFetchApplications: () => Promise<{ success: boolean; applications: any[] }>;
+  adminEditApplication: (id: number, appData: any, services: any[]) => Promise<{ success: boolean; message: string }>;
+  adminApproveApplication: (id: number) => Promise<{ success: boolean; message: string }>;
+  adminRejectApplication: (id: number, feedback: string) => Promise<{ success: boolean; message: string }>;
 }
 
 // ==========================================
@@ -401,6 +410,16 @@ const MOCK_USERS: { email: string; pass: string; user: User }[] = [
       name: 'ScissorsRock Hair Studio',
       role: 'barber',
       barberId: 'b1', // Links to ScissorsRock Hair Studio b1
+    },
+  },
+  {
+    email: 'admin@barbo.in',
+    pass: '123456',
+    user: {
+      id: 'admin-user',
+      email: 'admin@barbo.in',
+      name: 'System Admin',
+      role: 'admin',
     },
   },
 ];
@@ -1127,9 +1146,265 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           }
           return b;
         })
-      );
+      );      return { success: true, message: 'Review submitted locally.' };
+    }
+  };
 
-      return { success: true, message: 'Review submitted locally.' };
+  // Local storage backup for offline/mock applications
+  const [mockApplications, setMockApplications] = useState<any[]>(() => {
+    const saved = localStorage.getItem('barbo_mock_applications');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {}
+    }
+    return [];
+  });
+
+  useEffect(() => {
+    localStorage.setItem('barbo_mock_applications', JSON.stringify(mockApplications));
+  }, [mockApplications]);
+
+  const submitApplication = async (appData: any, servicesList: any[]) => {
+    try {
+      const res = await fetch(`${BASE_URL}/onboarding/apply`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...appData, services: servicesList })
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        return { success: true, message: data.message || 'Application submitted successfully!' };
+      }
+      return { success: false, message: data.message || 'Submission failed' };
+    } catch (err) {
+      console.warn("Express server offline, running fallback local onboarding submission.");
+      const email = appData.email.trim().toLowerCase();
+      
+      // Check existing mock applications
+      const existingIdx = mockApplications.findIndex(a => a.email === email);
+      if (existingIdx !== -1) {
+        const app = mockApplications[existingIdx];
+        if (app.status === 'approved') {
+          return { success: false, message: 'An application with this email has already been approved' };
+        }
+        const updated = [...mockApplications];
+        updated[existingIdx] = {
+          ...app,
+          shopName: appData.shopName,
+          ownerName: appData.ownerName,
+          contactNumber: appData.contactNumber,
+          location: appData.location,
+          lat: appData.lat,
+          lon: appData.lon,
+          chairsCount: appData.chairsCount,
+          openingTime: appData.openingTime,
+          closingTime: appData.closingTime,
+          status: 'pending',
+          rejectionFeedback: null,
+          updatedAt: new Date().toISOString(),
+          services: servicesList.map((s, idx) => ({ ...s, id: `mock-s-${app.id}-${idx}`, durationMinutes: Number(s.durationMinutes) }))
+        };
+        setMockApplications(updated);
+      } else {
+        const newId = Date.now();
+        const newApp = {
+          id: newId,
+          shopName: appData.shopName,
+          ownerName: appData.ownerName,
+          email,
+          contactNumber: appData.contactNumber,
+          location: appData.location,
+          lat: appData.lat,
+          lon: appData.lon,
+          chairsCount: appData.chairsCount,
+          openingTime: appData.openingTime,
+          closingTime: appData.closingTime,
+          status: 'pending',
+          rejectionFeedback: null,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          services: servicesList.map((s, idx) => ({ ...s, id: `mock-s-${newId}-${idx}`, durationMinutes: Number(s.durationMinutes) }))
+        };
+        setMockApplications(prev => [...prev, newApp]);
+      }
+      return { success: true, message: 'Application submitted successfully! (Offline Fallback)' };
+    }
+  };
+
+  const checkApplicationStatus = async (email: string) => {
+    try {
+      const res = await fetch(`${BASE_URL}/onboarding/status/${encodeURIComponent(email)}`);
+      const data = await res.json();
+      if (res.ok && data.success) {
+        return { success: true, application: data.application };
+      }
+      return { success: false, application: null };
+    } catch (err) {
+      console.warn("Express server offline, running fallback local onboarding status checker.");
+      const trimmedEmail = email.trim().toLowerCase();
+      const found = mockApplications.find(a => a.email === trimmedEmail);
+      if (!found) {
+        return { success: false, application: null };
+      }
+      return { success: true, application: found };
+    }
+  };
+
+  const adminFetchApplications = async () => {
+    try {
+      const res = await fetch(`${BASE_URL}/admin/applications`);
+      const data = await res.json();
+      if (res.ok && data.success) {
+        return { success: true, applications: data.applications };
+      }
+      return { success: false, applications: [] };
+    } catch (err) {
+      console.warn("Express server offline, running fallback local admin applications retrieval.");
+      return { success: true, applications: mockApplications };
+    }
+  };
+
+  const adminEditApplication = async (id: number, appData: any, servicesList: any[]) => {
+    try {
+      const res = await fetch(`${BASE_URL}/admin/applications/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...appData, services: servicesList })
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        return { success: true, message: data.message || 'Application updated successfully!' };
+      }
+      return { success: false, message: data.message || 'Update failed' };
+    } catch (err) {
+      console.warn("Express server offline, running fallback local admin application editor.");
+      const updated = mockApplications.map(a => {
+        if (a.id === id) {
+          return {
+            ...a,
+            ...appData,
+            services: servicesList.map((s, idx) => ({ ...s, id: `mock-s-${id}-${idx}`, durationMinutes: Number(s.durationMinutes) })),
+            updatedAt: new Date().toISOString()
+          };
+        }
+        return a;
+      });
+      setMockApplications(updated);
+      return { success: true, message: 'Application updated successfully! (Offline Fallback)' };
+    }
+  };
+
+  const adminApproveApplication = async (id: number) => {
+    try {
+      const res = await fetch(`${BASE_URL}/admin/applications/${id}/approve`, {
+        method: 'POST'
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        // Trigger live refresh of barbers & services
+        const lat = userCoordinates?.lat || 23.2495;
+        const lng = userCoordinates?.lng || 77.4172;
+        fetchLocalBarbers(lat, lng);
+        
+        // Refresh services list
+        try {
+          const sRes = await fetch(`${BASE_URL}/services`);
+          if (sRes.ok) {
+            const sData = await sRes.json();
+            setServices(sData);
+          }
+        } catch (e) {}
+
+        return { success: true, message: data.message || 'Application approved successfully!' };
+      }
+      return { success: false, message: data.message || 'Approval failed' };
+    } catch (err) {
+      console.warn("Express server offline, running fallback local admin application approval.");
+      const app = mockApplications.find(a => a.id === id);
+      if (!app) {
+        return { success: false, message: 'Application not found' };
+      }
+
+      // Update application status
+      setMockApplications(prev => prev.map(a => a.id === id ? { ...a, status: 'approved' } : a));
+
+      // Provision Barber Profile
+      const newBarberId = `b-${Date.now()}`;
+      const newBarber: Barber = {
+        id: newBarberId,
+        name: app.shopName,
+        title: 'Premium Professional Grooming',
+        specialty: 'Custom Styling & Grooming',
+        rating: 4.8,
+        reviewsCount: 0,
+        imageUrl: 'https://images.unsplash.com/photo-1585747860715-2ba37e788b70?auto=format&fit=crop&q=80&w=250&h=250',
+        delayStatus: 'On Time',
+        portfolioImages: [],
+        location: app.location,
+        mapsUrl: `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(app.shopName + ' ' + app.location)}`,
+        distanceMeters: 1500,
+        routeCoordinates: [
+          { lat: userCoordinates?.lat || 23.2495, lng: userCoordinates?.lng || 77.4172 },
+          { lat: app.lat, lng: app.lon }
+        ],
+        leadStylist: app.ownerName,
+        lat: app.lat,
+        lon: app.lon,
+        chairsCount: app.chairsCount
+      };
+
+      setBarbers(prev => [...prev, newBarber]);
+
+      // Provision Custom Services
+      const newServices: Service[] = app.services.map((s: any, idx: number) => ({
+        id: `s-${newBarberId}-${idx}`,
+        name: s.name,
+        description: `Premium ${s.name} service custom tailored for you.`,
+        price: Number(s.price),
+        durationMinutes: Number(s.durationMinutes),
+        barberId: newBarberId
+      }));
+
+      setServices(prev => [...prev, ...newServices]);
+
+      // Provision User Account
+      const newUserId = `barber-user-${Date.now()}`;
+      const newUser: User = {
+        id: newUserId,
+        email: app.email,
+        name: app.ownerName,
+        role: 'barber',
+        barberId: newBarberId
+      };
+
+      // Add to MOCK_USERS
+      MOCK_USERS.push({
+        email: app.email,
+        pass: '123456', // default
+        user: newUser
+      });
+
+      return { success: true, message: 'Application approved and accounts provisioned! (Offline Fallback)' };
+    }
+  };
+
+  const adminRejectApplication = async (id: number, feedback: string) => {
+    try {
+      const res = await fetch(`${BASE_URL}/admin/applications/${id}/reject`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ feedback })
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        return { success: true, message: data.message || 'Application rejected successfully.' };
+      }
+      return { success: false, message: data.message || 'Rejection failed' };
+    } catch (err) {
+      console.warn("Express server offline, running fallback local admin application rejection.");
+      setMockApplications(prev => prev.map(a => a.id === id ? { ...a, status: 'rejected', rejectionFeedback: feedback } : a));
+      return { success: true, message: 'Application rejected with feedback. (Offline Fallback)' };
     }
   };
 
@@ -1141,7 +1416,7 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         signup,
         logout,
         barbers,
-        services: INITIAL_SERVICES,
+        services,
         appointments,
         bookAppointment,
         rescheduleAppointment,
@@ -1160,7 +1435,15 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         isMapLoading,
         setIsMapLoading,
         fetchLocalBarbers,
-        resetBarbersToDefault
+        resetBarbersToDefault,
+
+        // Onboarding & Admin
+        submitApplication,
+        checkApplicationStatus,
+        adminFetchApplications,
+        adminEditApplication,
+        adminApproveApplication,
+        adminRejectApplication
       }}
     >
       {children}

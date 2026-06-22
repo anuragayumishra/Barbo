@@ -9,7 +9,7 @@ CREATE TABLE IF NOT EXISTS users (
   email VARCHAR(100) UNIQUE NOT NULL,
   password VARCHAR(255) NOT NULL,
   name VARCHAR(100) NOT NULL,
-  role ENUM('customer', 'barber') NOT NULL,
+  role ENUM('customer', 'barber', 'admin') NOT NULL,
   barber_id VARCHAR(50) NULL
 );
 
@@ -19,7 +19,8 @@ CREATE TABLE IF NOT EXISTS services (
   name VARCHAR(100) NOT NULL,
   description TEXT NOT NULL,
   price INT NOT NULL,
-  duration_minutes INT NOT NULL
+  duration_minutes INT NOT NULL,
+  barber_id VARCHAR(50) NULL
 );
 
 -- 3. Barbers Table
@@ -161,5 +162,37 @@ INSERT INTO barber_portfolio (barber_id, image_url) VALUES
 -- Seed Users
 INSERT INTO users (id, email, password, name, role, barber_id) VALUES
 ('cust-faizan', 'faizan@barbo.in', '123456', 'Faizan', 'customer', NULL),
-('barber-rajesh', 'rajesh@barbo.in', '123456', 'ScissorsRock Hair Studio', 'barber', 'b1')
+('barber-rajesh', 'rajesh@barbo.in', '123456', 'ScissorsRock Hair Studio', 'barber', 'b1'),
+('admin-user', 'admin@barbo.in', '123456', 'System Admin', 'admin', NULL)
 ON DUPLICATE KEY UPDATE email=VALUES(email), password=VALUES(password), name=VALUES(name), role=VALUES(role), barber_id=VALUES(barber_id);
+
+-- Foreign Key constraint on services (barber_id)
+ALTER TABLE services ADD CONSTRAINT fk_services_barber FOREIGN KEY (barber_id) REFERENCES barbers(id) ON DELETE CASCADE;
+
+-- Barber Onboarding Applications Tables
+CREATE TABLE IF NOT EXISTS barber_applications (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  shop_name VARCHAR(100) NOT NULL,
+  owner_name VARCHAR(100) NOT NULL,
+  email VARCHAR(100) NOT NULL,
+  contact_number VARCHAR(20) NOT NULL,
+  location VARCHAR(255) NOT NULL,
+  lat DECIMAL(9,6) NOT NULL,
+  lon DECIMAL(9,6) NOT NULL,
+  chairs_count INT NOT NULL,
+  opening_time VARCHAR(10) NOT NULL,
+  closing_time VARCHAR(10) NOT NULL,
+  status ENUM('pending', 'approved', 'rejected') NOT NULL DEFAULT 'pending',
+  rejection_feedback TEXT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS application_services (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  application_id INT NOT NULL,
+  name VARCHAR(100) NOT NULL,
+  price INT NOT NULL,
+  duration_minutes INT NOT NULL,
+  FOREIGN KEY (application_id) REFERENCES barber_applications(id) ON DELETE CASCADE
+);

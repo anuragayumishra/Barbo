@@ -125,12 +125,13 @@ app.post('/api/auth/signup', async (req, res) => {
 // 2. Services List Retriever
 app.get('/api/services', async (req, res) => {
   try {
-    const [rows] = await pool.query('SELECT * FROM services');
+    const [rows] = await pool.query('SELECT id, name, description, price, duration_minutes as durationMinutes, barber_id as barberId FROM services');
     res.json(rows);
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }
 });
+
 
 // 3. Barbers List & Proximity Finder
 app.get('/api/barbers', async (req, res) => {
@@ -873,6 +874,401 @@ app.patch('/api/barbers/:id/delay', async (req, res) => {
   try {
     await pool.query('UPDATE barbers SET delay_status = ? WHERE id = ?', [delayStatus, id]);
     res.json({ success: true, message: 'Delay updated successfully' });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// ==========================================
+// BARBER ONBOARDING & ADMIN PORTAL ROUTES
+// ==========================================
+
+// Onboarding 1: Apply / Resubmit Application
+app.post('/api/onboarding/apply', async (req, res) => {
+  const {
+    shopName,
+    ownerName,
+    email,
+    contactNumber,
+    location,
+    lat,
+    lon,
+    chairsCount,
+    openingTime,
+    closingTime,
+    services
+  } = req.body;
+
+  if (
+    !shopName || !ownerName || !email || !contactNumber || !location ||
+    lat === undefined || lon === undefined || chairsCount === undefined ||
+    !openingTime || !closingTime || !Array.isArray(services) || services.length === 0
+  ) {
+    return res.status(400).json({ success: false, message: 'All shop details and at least one service are required' });
+  }
+
+  const trimmedEmail = email.trim().toLowerCase();
+  const conn = await pool.getConnection();
+
+  try {
+    await conn.beginTransaction();
+
+    // Check if there is an existing application
+    const [existing] = await conn.query('SELECT id, status FROM barber_applications WHERE email = ?', [trimmedEmail]);
+
+    let applicationId;
+
+    if (existing.length > 0) {
+      const app = existing[0];
+      if (app.status === 'approved') {
+        await conn.rollback();
+        return res.status(400).json({ success: false, message: 'An application with this email has already been approved' });
+      }
+
+      applicationId = app.id;
+      // Update existing application
+      await conn.query(
+        `UPDATE barber_applications 
+         SET shop_name = ?, owner_name = ?, contact_number = ?, location = ?, 
+             lat = ?, lon = ?, chairs_count = ?, opening_time = ?, closing_time = ?, 
+             status = 'pending', rejection_feedback = NULL 
+         WHERE id = ?`,
+        [
+          shopName.trim(), ownerName.trim(), contactNumber.trim(), location.trim(),
+          Number(lat), Number(lon), Number(chairsCount), openingTime, closingTime,
+          applicationId
+        ]
+      );
+
+      // Clear existing services
+      await conn.query('DELETE FROM application_services WHERE application_id = ?', [applicationId]);
+    } else {
+      // Create new application
+      const [insertResult] = await conn.query(
+        `INSERT INTO barber_applications 
+         (shop_name, owner_name, email, contact_number, location, lat, lon, chairs_count, opening_time, closing_time, status) 
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending')`,
+        [
+          shopName.trim(), ownerName.trim(), trimmedEmail, contactNumber.trim(), location.trim(),
+          Number(lat), Number(lon), Number(chairsCount), openingTime, closingTime
+        ]
+      );
+      applicationId = insertResult.insertId;
+    }
+
+    // Insert new services
+    for (const service of services) {
+      if (!service.name || service.price === undefined || service.durationMinutes === undefined) {
+        throw new Error('Invalid service data: name, price, and durationMinutes are required');
+      }
+      await conn.query(
+        `INSERT INTO application_services (application_id, name, price, duration_minutes) 
+         VALUES (?, ?, ?, ?)`,
+        [applicationId, service.name.trim(), Number(service.price), Number(service.durationMinutes)]
+      );
+    }
+
+    await conn.commit();
+    res.status(201).json({ success: true, message: 'Application submitted successfully!', applicationId });
+  } catch (err) {
+    await conn.rollback();
+    res.status(500).json({ success: false, message: err.message });
+  } finally {
+    conn.release();
+  }
+});
+
+// Onboarding 2: Check Status
+app.get('/api/onboarding/status/:email', async (req, res) => {
+  const { email } = req.params;
+  if (!email) {
+    return res.status(400).json({ success: false, message: 'Email parameter is required' });
+  }
+
+  try {
+    const trimmedEmail = email.trim().toLowerCase();
+    const [apps] = await pool.query('SELECT * FROM barber_applications WHERE email = ?', [trimmedEmail]);
+
+    if (apps.length === 0) {
+      return res.status(404).json({ success: false, message: 'No application found with this email' });
+    }
+
+    const app = apps[0];
+    const [services] = await pool.query(
+      'SELECT name, price, duration_minutes as durationMinutes FROM application_services WHERE application_id = ?',
+      [app.id]
+    );
+
+    res.json({
+      success: true,
+      application: {
+        id: app.id,
+        shopName: app.shop_name,
+        ownerName: app.owner_name,
+        email: app.email,
+        contactNumber: app.contact_number,
+        location: app.location,
+        lat: Number(app.lat),
+        lon: Number(app.lon),
+        chairsCount: app.chairs_count,
+        openingTime: app.opening_time,
+        closingTime: app.closing_time,
+        status: app.status,
+        rejectionFeedback: app.rejection_feedback,
+        createdAt: app.created_at,
+        updatedAt: app.updated_at,
+        services
+      }
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// Admin 1: Fetch All Applications
+app.get('/api/admin/applications', async (req, res) => {
+  try {
+    const [apps] = await pool.query('SELECT * FROM barber_applications ORDER BY created_at DESC');
+    
+    const formattedApps = await Promise.all(
+      apps.map(async (app) => {
+        const [services] = await pool.query(
+          'SELECT name, price, duration_minutes as durationMinutes FROM application_services WHERE application_id = ?',
+          [app.id]
+        );
+        return {
+          id: app.id,
+          shopName: app.shop_name,
+          ownerName: app.owner_name,
+          email: app.email,
+          contactNumber: app.contact_number,
+          location: app.location,
+          lat: Number(app.lat),
+          lon: Number(app.lon),
+          chairsCount: app.chairs_count,
+          openingTime: app.opening_time,
+          closingTime: app.closing_time,
+          status: app.status,
+          rejectionFeedback: app.rejection_feedback,
+          createdAt: app.created_at,
+          updatedAt: app.updated_at,
+          services
+        };
+      })
+    );
+
+    res.json({ success: true, applications: formattedApps });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// Admin 2: Edit Application Details (Inline Edit)
+app.put('/api/admin/applications/:id', async (req, res) => {
+  const { id } = req.params;
+  const {
+    shopName,
+    ownerName,
+    contactNumber,
+    location,
+    lat,
+    lon,
+    chairsCount,
+    openingTime,
+    closingTime,
+    services
+  } = req.body;
+
+  if (
+    !shopName || !ownerName || !contactNumber || !location ||
+    lat === undefined || lon === undefined || chairsCount === undefined ||
+    !openingTime || !closingTime || !Array.isArray(services) || services.length === 0
+  ) {
+    return res.status(400).json({ success: false, message: 'All shop details and services are required for update' });
+  }
+
+  const conn = await pool.getConnection();
+
+  try {
+    await conn.beginTransaction();
+
+    // Verify application exists and is not approved
+    const [appCheck] = await conn.query('SELECT status FROM barber_applications WHERE id = ?', [id]);
+    if (appCheck.length === 0) {
+      await conn.rollback();
+      return res.status(404).json({ success: false, message: 'Application not found' });
+    }
+    if (appCheck[0].status === 'approved') {
+      await conn.rollback();
+      return res.status(400).json({ success: false, message: 'Cannot edit an already approved application' });
+    }
+
+    // Update application
+    await conn.query(
+      `UPDATE barber_applications 
+       SET shop_name = ?, owner_name = ?, contact_number = ?, location = ?, 
+           lat = ?, lon = ?, chairs_count = ?, opening_time = ?, closing_time = ? 
+       WHERE id = ?`,
+      [
+        shopName.trim(), ownerName.trim(), contactNumber.trim(), location.trim(),
+        Number(lat), Number(lon), Number(chairsCount), openingTime, closingTime,
+        id
+      ]
+    );
+
+    // Delete existing services
+    await conn.query('DELETE FROM application_services WHERE application_id = ?', [id]);
+
+    // Insert updated services
+    for (const service of services) {
+      if (!service.name || service.price === undefined || service.durationMinutes === undefined) {
+        throw new Error('Invalid service data');
+      }
+      await conn.query(
+        `INSERT INTO application_services (application_id, name, price, duration_minutes) 
+         VALUES (?, ?, ?, ?)`,
+        [id, service.name.trim(), Number(service.price), Number(service.durationMinutes)]
+      );
+    }
+
+    await conn.commit();
+    res.json({ success: true, message: 'Application updated successfully!' });
+  } catch (err) {
+    await conn.rollback();
+    res.status(500).json({ success: false, message: err.message });
+  } finally {
+    conn.release();
+  }
+});
+
+// Admin 3: Approve Application
+app.post('/api/admin/applications/:id/approve', async (req, res) => {
+  const { id } = req.params;
+  const conn = await pool.getConnection();
+
+  try {
+    await conn.beginTransaction();
+
+    // 1. Fetch application details
+    const [apps] = await conn.query('SELECT * FROM barber_applications WHERE id = ?', [id]);
+    if (apps.length === 0) {
+      await conn.rollback();
+      return res.status(404).json({ success: false, message: 'Application not found' });
+    }
+
+    const app = apps[0];
+    if (app.status === 'approved') {
+      await conn.rollback();
+      return res.status(400).json({ success: false, message: 'This application is already approved' });
+    }
+
+    // 2. Fetch application services
+    const [appServices] = await conn.query('SELECT * FROM application_services WHERE application_id = ?', [id]);
+
+    const barberId = `b-${Date.now()}`;
+    const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(app.shop_name + ' ' + app.location)}`;
+
+    // 3. Create Barber profile
+    await conn.query(
+      `INSERT INTO barbers 
+       (id, name, title, specialty, rating, reviews_count, image_url, delay_status, location, maps_url, distance_meters, lead_stylist, lat, lon, chairs_count) 
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        barberId,
+        app.shop_name,
+        'Premium Professional Grooming',
+        'Custom Styling & Grooming',
+        4.8,
+        0,
+        'https://images.unsplash.com/photo-1585747860715-2ba37e788b70?auto=format&fit=crop&q=80&w=250&h=250',
+        'On Time',
+        app.location,
+        mapsUrl,
+        1500,
+        app.owner_name,
+        app.lat,
+        app.lon,
+        app.chairs_count
+      ]
+    );
+
+    // 4. Create Barber Services
+    for (let idx = 0; idx < appServices.length; idx++) {
+      const s = appServices[idx];
+      const serviceId = `s-${barberId}-${idx}`;
+      await conn.query(
+        `INSERT INTO services (id, name, description, price, duration_minutes, barber_id) 
+         VALUES (?, ?, ?, ?, ?, ?)`,
+        [
+          serviceId,
+          s.name,
+          `Premium ${s.name} service custom tailored for you.`,
+          s.price,
+          s.duration_minutes,
+          barberId
+        ]
+      );
+    }
+
+    // 5. Create Barber User Account
+    const userId = `barber-user-${Date.now()}`;
+    // Insert user (using On Duplicate Key Update to handle edge cases where email already exists in users)
+    await conn.query(
+      `INSERT INTO users (id, email, password, name, role, barber_id) 
+       VALUES (?, ?, ?, ?, 'barber', ?) 
+       ON DUPLICATE KEY UPDATE 
+         role='barber', 
+         barber_id=VALUES(barber_id),
+         name=VALUES(name)`,
+      [
+        userId,
+        app.email.trim().toLowerCase(),
+        '123456', // Default password
+        app.owner_name,
+        barberId
+      ]
+    );
+
+    // 6. Update application status
+    await conn.query(
+      'UPDATE barber_applications SET status = ?, rejection_feedback = NULL WHERE id = ?',
+      ['approved', id]
+    );
+
+    await conn.commit();
+    res.json({ success: true, message: 'Application approved, barber profile and user account created successfully!' });
+  } catch (err) {
+    await conn.rollback();
+    res.status(500).json({ success: false, message: err.message });
+  } finally {
+    conn.release();
+  }
+});
+
+// Admin 4: Reject Application
+app.post('/api/admin/applications/:id/reject', async (req, res) => {
+  const { id } = req.params;
+  const { feedback } = req.body;
+
+  if (!feedback || !feedback.trim()) {
+    return res.status(400).json({ success: false, message: 'Rejection feedback is required' });
+  }
+
+  try {
+    const [appCheck] = await pool.query('SELECT status FROM barber_applications WHERE id = ?', [id]);
+    if (appCheck.length === 0) {
+      return res.status(404).json({ success: false, message: 'Application not found' });
+    }
+    if (appCheck[0].status === 'approved') {
+      return res.status(400).json({ success: false, message: 'Cannot reject an already approved application' });
+    }
+
+    await pool.query(
+      'UPDATE barber_applications SET status = ?, rejection_feedback = ? WHERE id = ?',
+      ['rejected', feedback.trim(), id]
+    );
+
+    res.json({ success: true, message: 'Application rejected with feedback.' });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }

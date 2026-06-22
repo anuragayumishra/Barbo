@@ -20,7 +20,16 @@ import {
   Compass,
   Search,
   Key,
-  AlertTriangle
+  AlertTriangle,
+  Plus,
+  Trash,
+  Edit,
+  Building,
+  Check,
+  Settings,
+  XCircle,
+  ArrowRight,
+  TrendingUp
 } from 'lucide-react';
 import { gsap } from 'gsap';
 
@@ -201,7 +210,13 @@ export default function App() {
     setUserCoordinates,
     locationName,
     fetchLocalBarbers,
-    resetBarbersToDefault
+    resetBarbersToDefault,
+    submitApplication,
+    checkApplicationStatus,
+    adminFetchApplications,
+    adminEditApplication,
+    adminApproveApplication,
+    adminRejectApplication
   } = useApp();
 
   const getLocalDateString = (d: Date = new Date()) => {
@@ -343,6 +358,60 @@ export default function App() {
   const [paymentUpiLoaderStatus, setPaymentUpiLoaderStatus] = useState('');
   const [paymentUpiError, setPaymentUpiError] = useState('');
 
+  // Onboarding Modal States
+  const [showLoginModal, setShowLoginModal] = useState(false);
+  const [showOnboardingModal, setShowOnboardingModal] = useState(false);
+  const [onboardingTab, setOnboardingTab] = useState<'apply' | 'status'>('apply');
+  const [onboardingEmailInput, setOnboardingEmailInput] = useState('');
+  const [checkedApplication, setCheckedApplication] = useState<any | null>(null);
+  const [checkingStatus, setCheckingStatus] = useState(false);
+  const [statusMessage, setStatusMessage] = useState('');
+
+  // Onboarding Form States
+  const [onboardingShopName, setOnboardingShopName] = useState('');
+  const [onboardingOwnerName, setOnboardingOwnerName] = useState('');
+  const [onboardingEmail, setOnboardingEmail] = useState('');
+  const [onboardingContactNumber, setOnboardingContactNumber] = useState('');
+  const [onboardingLocation, setOnboardingLocation] = useState('');
+  const [onboardingLat, setOnboardingLat] = useState('23.2500');
+  const [onboardingLon, setOnboardingLon] = useState('77.4100');
+  const [onboardingChairsCount, setOnboardingChairsCount] = useState(2);
+  const [onboardingOpeningTime, setOnboardingOpeningTime] = useState('09:00');
+  const [onboardingClosingTime, setOnboardingClosingTime] = useState('21:00');
+  const [onboardingServices, setOnboardingServices] = useState<{ name: string; price: number; durationMinutes: number }[]>([
+    { name: 'Classic Haircut', price: 150, durationMinutes: 20 },
+    { name: 'Beard Trim & Shave', price: 100, durationMinutes: 15 }
+  ]);
+  const [newServiceName, setNewServiceName] = useState('');
+  const [newServicePrice, setNewServicePrice] = useState('100');
+  const [newServiceDuration, setNewServiceDuration] = useState('20');
+  const [submittingOnboarding, setSubmittingOnboarding] = useState(false);
+  const [onboardingSuccess, setOnboardingSuccess] = useState(false);
+  const [onboardingError, setOnboardingError] = useState('');
+
+  // Admin Dashboard States
+  const [adminApplications, setAdminApplications] = useState<any[]>([]);
+  const [selectedAdminApp, setSelectedAdminApp] = useState<any | null>(null);
+  const [loadingAdminApps, setLoadingAdminApps] = useState(false);
+  const [adminActionFeedback, setAdminActionFeedback] = useState('');
+  const [adminActionError, setAdminActionError] = useState('');
+  const [showRejectFeedbackModal, setShowRejectFeedbackModal] = useState(false);
+  const [rejectFeedbackText, setRejectFeedbackText] = useState('');
+  const [isAdminEditing, setIsAdminEditing] = useState(false);
+
+  // Admin Edit Form States
+  const [adminEditShopName, setAdminEditShopName] = useState('');
+  const [adminEditOwnerName, setAdminEditOwnerName] = useState('');
+  const [adminEditContactNumber, setAdminEditContactNumber] = useState('');
+  const [adminEditLocation, setAdminEditLocation] = useState('');
+  const [adminEditLat, setAdminEditLat] = useState('23.2500');
+  const [adminEditLon, setAdminEditLon] = useState('77.4100');
+  const [adminEditChairsCount, setAdminEditChairsCount] = useState(2);
+  const [adminEditOpeningTime, setAdminEditOpeningTime] = useState('09:00');
+  const [adminEditClosingTime, setAdminEditClosingTime] = useState('21:00');
+  const [adminEditServices, setAdminEditServices] = useState<{ name: string; price: number; durationMinutes: number }[]>([]);
+
+
   // Cancellation Modal States
   const [cancellingApp, setCancellingApp] = useState<any | null>(null);
   const [cancelReasonOption, setCancelReasonOption] = useState('');
@@ -356,7 +425,6 @@ export default function App() {
 
   // GSAP Animation Refs
   const mainRef = useRef<HTMLDivElement>(null);
-  const loginRef = useRef<HTMLDivElement>(null);
 
   // Browser GPS Geolocation Handler with reverse geocoding via Nominatim
   const handleShareLocation = () => {
@@ -523,6 +591,237 @@ export default function App() {
       );
     }
   }, [currentUser]);
+
+  // Load admin applications on admin login
+  useEffect(() => {
+    if (currentUser && currentUser.role === 'admin') {
+      const loadApps = async () => {
+        setLoadingAdminApps(true);
+        const res = await adminFetchApplications();
+        if (res.success) {
+          setAdminApplications(res.applications);
+          if (res.applications.length > 0) {
+            setSelectedAdminApp(res.applications[0]);
+          }
+        }
+        setLoadingAdminApps(false);
+      };
+      loadApps();
+    }
+  }, [currentUser]);
+
+  // Onboarding Status Checker
+  const handleCheckStatus = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!onboardingEmailInput.trim()) {
+      setStatusMessage('Please enter your email address.');
+      return;
+    }
+    setCheckingStatus(true);
+    setStatusMessage('');
+    setCheckedApplication(null);
+
+    const res = await checkApplicationStatus(onboardingEmailInput);
+    setCheckingStatus(false);
+    if (res.success && res.application) {
+      setCheckedApplication(res.application);
+    } else {
+      setStatusMessage('No application found with this email.');
+    }
+  };
+
+  // Onboarding Form Submission
+  const handleOnboardingSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!onboardingShopName.trim() || !onboardingOwnerName.trim() || !onboardingEmail.trim() || !onboardingContactNumber.trim() || !onboardingLocation.trim()) {
+      setOnboardingError('Please fill in all basic shop information.');
+      return;
+    }
+    if (onboardingServices.length === 0) {
+      setOnboardingError('Please add at least one service offered by your shop.');
+      return;
+    }
+
+    setSubmittingOnboarding(true);
+    setOnboardingError('');
+    setOnboardingSuccess(false);
+
+    const appData = {
+      shopName: onboardingShopName,
+      ownerName: onboardingOwnerName,
+      email: onboardingEmail,
+      contactNumber: onboardingContactNumber,
+      location: onboardingLocation,
+      lat: Number(onboardingLat),
+      lon: Number(onboardingLon),
+      chairsCount: onboardingChairsCount,
+      openingTime: onboardingOpeningTime,
+      closingTime: onboardingClosingTime
+    };
+
+    const res = await submitApplication(appData, onboardingServices);
+    setSubmittingOnboarding(false);
+    if (res.success) {
+      setOnboardingSuccess(true);
+      showToast('Onboarding application submitted successfully!');
+      // Clear form
+      setOnboardingShopName('');
+      setOnboardingOwnerName('');
+      setOnboardingEmail('');
+      setOnboardingContactNumber('');
+      setOnboardingLocation('');
+      setOnboardingServices([
+        { name: 'Classic Haircut', price: 150, durationMinutes: 20 },
+        { name: 'Beard Trim & Shave', price: 100, durationMinutes: 15 }
+      ]);
+    } else {
+      setOnboardingError(res.message);
+    }
+  };
+
+  // Onboarding Services List Management
+  const handleAddOnboardingService = () => {
+    if (!newServiceName.trim()) return;
+    const price = Number(newServicePrice) || 100;
+    const duration = Number(newServiceDuration) || 20;
+    setOnboardingServices(prev => [...prev, { name: newServiceName.trim(), price, durationMinutes: duration }]);
+    setNewServiceName('');
+  };
+
+  const handleRemoveOnboardingService = (index: number) => {
+    setOnboardingServices(prev => prev.filter((_, idx) => idx !== index));
+  };
+
+  const handleEditAndResubmit = (app: any) => {
+    setOnboardingShopName(app.shopName);
+    setOnboardingOwnerName(app.ownerName);
+    setOnboardingEmail(app.email);
+    setOnboardingContactNumber(app.contactNumber);
+    setOnboardingLocation(app.location);
+    setOnboardingLat(String(app.lat));
+    setOnboardingLon(String(app.lon));
+    setOnboardingChairsCount(app.chairsCount);
+    setOnboardingOpeningTime(app.openingTime);
+    setOnboardingClosingTime(app.closingTime);
+    setOnboardingServices(app.services || []);
+    setOnboardingTab('apply');
+    setCheckedApplication(null);
+    setOnboardingSuccess(false);
+    setOnboardingError('');
+  };
+
+  // Admin Portal Actions
+  const handleAdminApprove = async (appId: number) => {
+    setAdminActionError('');
+    setAdminActionFeedback('');
+    const res = await adminApproveApplication(appId);
+    if (res.success) {
+      setAdminActionFeedback('Application approved and account created successfully!');
+      showToast('Barber approved successfully!');
+      // Reload applications list
+      const loadRes = await adminFetchApplications();
+      if (loadRes.success) {
+        setAdminApplications(loadRes.applications);
+        const updated = loadRes.applications.find((a: any) => a.id === appId);
+        if (updated) setSelectedAdminApp(updated);
+      }
+    } else {
+      setAdminActionError(res.message);
+    }
+  };
+
+  const handleAdminRejectSubmit = async () => {
+    if (!rejectFeedbackText.trim()) {
+      alert('Please enter rejection feedback/comments.');
+      return;
+    }
+    if (!selectedAdminApp) return;
+
+    setAdminActionError('');
+    setAdminActionFeedback('');
+    const res = await adminRejectApplication(selectedAdminApp.id, rejectFeedbackText);
+    setShowRejectFeedbackModal(false);
+    setRejectFeedbackText('');
+
+    if (res.success) {
+      setAdminActionFeedback('Application rejected and feedback sent.');
+      showToast('Application rejected.');
+      // Reload applications list
+      const loadRes = await adminFetchApplications();
+      if (loadRes.success) {
+        setAdminApplications(loadRes.applications);
+        const updated = loadRes.applications.find((a: any) => a.id === selectedAdminApp.id);
+        if (updated) setSelectedAdminApp(updated);
+      }
+    } else {
+      setAdminActionError(res.message);
+    }
+  };
+
+  const handleStartAdminEdit = (app: any) => {
+    setAdminEditShopName(app.shopName);
+    setAdminEditOwnerName(app.ownerName);
+    setAdminEditContactNumber(app.contactNumber);
+    setAdminEditLocation(app.location);
+    setAdminEditLat(String(app.lat));
+    setAdminEditLon(String(app.lon));
+    setAdminEditChairsCount(app.chairsCount);
+    setAdminEditOpeningTime(app.openingTime);
+    setAdminEditClosingTime(app.closingTime);
+    setAdminEditServices(app.services || []);
+    setIsAdminEditing(true);
+  };
+
+  const handleSaveAdminEdit = async () => {
+    if (!selectedAdminApp) return;
+    if (!adminEditShopName.trim() || !adminEditOwnerName.trim() || !adminEditContactNumber.trim() || !adminEditLocation.trim()) {
+      alert('Please fill in all shop details.');
+      return;
+    }
+    if (adminEditServices.length === 0) {
+      alert('At least one service is required.');
+      return;
+    }
+
+    const appData = {
+      shopName: adminEditShopName,
+      ownerName: adminEditOwnerName,
+      contactNumber: adminEditContactNumber,
+      location: adminEditLocation,
+      lat: Number(adminEditLat),
+      lon: Number(adminEditLon),
+      chairsCount: adminEditChairsCount,
+      openingTime: adminEditOpeningTime,
+      closingTime: adminEditClosingTime
+    };
+
+    const res = await adminEditApplication(selectedAdminApp.id, appData, adminEditServices);
+    if (res.success) {
+      setIsAdminEditing(false);
+      showToast('Application updated successfully.');
+      // Reload applications list
+      const loadRes = await adminFetchApplications();
+      if (loadRes.success) {
+        setAdminApplications(loadRes.applications);
+        const updated = loadRes.applications.find((a: any) => a.id === selectedAdminApp.id);
+        if (updated) setSelectedAdminApp(updated);
+      }
+    } else {
+      alert(res.message);
+    }
+  };
+
+  const handleAddAdminService = () => {
+    if (!newServiceName.trim()) return;
+    const price = Number(newServicePrice) || 100;
+    const duration = Number(newServiceDuration) || 20;
+    setAdminEditServices(prev => [...prev, { name: newServiceName.trim(), price, durationMinutes: duration }]);
+    setNewServiceName('');
+  };
+
+  const handleRemoveAdminService = (index: number) => {
+    setAdminEditServices(prev => prev.filter((_, idx) => idx !== index));
+  };
 
   // Quick Autocomplete Helper for Grading
   const handleQuickLogin = (roleMail: string) => {
@@ -769,144 +1068,385 @@ export default function App() {
   // ==========================================
   if (!currentUser) {
     return (
-      <div 
-        ref={loginRef}
-        className="animate-fade-in"
-        style={{ 
-          minHeight: '100vh', 
-          display: 'flex', 
-          flexDirection: 'column', 
-          justifyContent: 'center', 
-          alignItems: 'center', 
-          background: 'var(--bg-primary)',
-          padding: '24px',
-          transition: 'background-color 0.4s ease'
-        }}
-      >
-        <div 
-          className="glass-card gsap-login-box" 
-          style={{ width: '100%', maxWidth: '440px', padding: '40px 32px' }}
-        >
-          {/* Logo Branding */}
-          <div style={{ textAlign: 'center', marginBottom: '32px' }}>
-            <div style={{ display: 'inline-flex', padding: '12px', background: 'var(--accent-gold-glow)', borderRadius: '50%', color: 'var(--accent-gold)', marginBottom: '16px' }}>
-              <Scissors size={28} />
-            </div>
-            <h1 style={{ fontSize: '2.2rem', textTransform: 'uppercase', letterSpacing: '-0.02em', fontWeight: 800 }}>
-              BAR<span style={{ color: 'var(--accent-gold)' }}>BO</span>
-            </h1>
-            <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', marginTop: '4px' }}>Find Your Barber in Bhopal</p>
+      <div className="landing-container animate-fade-in">
+        {/* Navigation Bar */}
+        <header className="landing-nav">
+          <div className="landing-nav-logo">
+            <Scissors size={20} />
+            BAR<span>BO</span>
+          </div>
+          <nav className="landing-nav-links">
+            <a href="#discover" className="landing-nav-link">Discover</a>
+            <a href="#features" className="landing-nav-link">Features</a>
+            <a href="#how-it-works" className="landing-nav-link">How It Works</a>
+          </nav>
+          <div className="landing-nav-actions">
+            <button 
+              className="btn-secondary" 
+              style={{ padding: '8px 16px', fontSize: '0.85rem' }}
+              onClick={() => {
+                setLoginError('');
+                setShowLoginModal(true);
+              }}
+            >
+              Sign In
+            </button>
+            <button 
+              className="gold-glow-btn"
+              style={{ padding: '8px 16px', fontSize: '0.85rem' }}
+              onClick={() => {
+                setOnboardingTab('apply');
+                setOnboardingError('');
+                setOnboardingSuccess(false);
+                setShowOnboardingModal(true);
+              }}
+            >
+              Partner with Us
+            </button>
+          </div>
+        </header>
+
+        {/* Hero Section */}
+        <section className="landing-hero" id="discover">
+          <div className="landing-badge">
+            <Sparkles size={14} /> Bhopal's Premier Grooming Network
+          </div>
+          <h1 className="landing-title">
+            Grooming <span>Elevated</span>.<br />Booking <span>Simplified</span>.
+          </h1>
+          <p className="landing-subtitle">
+            Discover verified elite salons, view dynamic price menus, and book your perfect slot in under 30 seconds. No prepayments needed.
+          </p>
+          <div className="landing-hero-actions">
+            <button 
+              className="gold-glow-btn"
+              style={{ padding: '14px 28px' }}
+              onClick={() => {
+                setOnboardingTab('apply');
+                setOnboardingError('');
+                setOnboardingSuccess(false);
+                setShowOnboardingModal(true);
+              }}
+            >
+              Partner with Us <ArrowRight size={16} />
+            </button>
+            <button 
+              className="btn-secondary"
+              style={{ padding: '14px 28px' }}
+              onClick={() => {
+                setOnboardingTab('status');
+                setOnboardingError('');
+                setOnboardingSuccess(false);
+                setShowOnboardingModal(true);
+              }}
+            >
+              Look Up Status
+            </button>
           </div>
 
-          {loginError && (
-            <div style={{ background: 'rgba(239, 68, 68, 0.08)', color: 'var(--status-red)', border: '1px solid rgba(239, 68, 68, 0.15)', padding: '12px', borderRadius: '10px', marginBottom: '20px', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <AlertCircle size={16} style={{ flexShrink: 0 }} />
-              <span>{loginError}</span>
+          {/* Stats Grid */}
+          <div className="landing-stats">
+            <div className="landing-stat-card">
+              <span className="landing-stat-value">50+</span>
+              <span className="landing-stat-label">Elite Salons</span>
             </div>
-          )}
+            <div className="landing-stat-card">
+              <span className="landing-stat-value">20k+</span>
+              <span className="landing-stat-label">Bookings Completed</span>
+            </div>
+            <div className="landing-stat-card">
+              <span className="landing-stat-value">0%</span>
+              <span className="landing-stat-label">Partner Commission</span>
+            </div>
+          </div>
+        </section>
 
-          {/* Form */}
-          <form onSubmit={handleLoginSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-            {isSignup && (
-              <div>
-                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '8px' }}>
-                  Full Name
-                </label>
-                <div style={{ position: 'relative' }}>
-                  <User size={16} style={{ position: 'absolute', left: '14px', top: '15px', color: 'var(--text-muted)' }} />
-                  <input 
-                    type="text"
-                    placeholder="John Doe"
-                    value={signupName}
-                    onChange={(e) => setSignupName(e.target.value)}
-                    style={{ width: '100%', padding: '12px 16px 12px 42px', background: 'var(--bg-tertiary)', border: '1px solid var(--border-light)', borderRadius: '12px', color: 'var(--text-primary)', outline: 'none', fontSize: '0.95rem' }}
-                  />
+        {/* Features Section */}
+        <section className="landing-section" id="features">
+          <div className="landing-section-header">
+            <h2 className="landing-section-title">Designed for Next-Gen Grooming</h2>
+            <p className="landing-section-subtitle">
+              Whether you are looking for a quick haircut or want to grow your salon business, Barbo provides a commission-free, premium experience.
+            </p>
+          </div>
+          
+          <div className="landing-features-grid">
+            {/* For Customers */}
+            <div className="landing-feature-card">
+              <div className="landing-feature-icon">
+                <Compass size={24} />
+              </div>
+              <h3 className="landing-feature-title">For Customers</h3>
+              <div className="landing-feature-list">
+                <div className="landing-feature-item">
+                  <Check size={16} />
+                  <span><strong>Zero Booking Fees:</strong> Book premium slots instantly without any hidden convenience charges.</span>
+                </div>
+                <div className="landing-feature-item">
+                  <Check size={16} />
+                  <span><strong>Dynamic Pricing Menus:</strong> Browse exact styling rates, descriptions, and duration requirements before scheduling.</span>
+                </div>
+                <div className="landing-feature-item">
+                  <Check size={16} />
+                  <span><strong>Flexible Rescheduling:</strong> Reschedule or cancel bookings up to 30 minutes before your slot.</span>
+                </div>
+                <div className="landing-feature-item">
+                  <Check size={16} />
+                  <span><strong>Verified Quality:</strong> Access reviews and profiles of verified top-rated barbers across Bhopal.</span>
                 </div>
               </div>
-            )}
+            </div>
 
-            <div>
-              <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '8px' }}>
-                Email Address
-              </label>
-              <div style={{ position: 'relative' }}>
-                <Mail size={16} style={{ position: 'absolute', left: '14px', top: '15px', color: 'var(--text-muted)' }} />
-                <input 
-                  type="email"
-                  placeholder="name@domain.com"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  style={{ width: '100%', padding: '12px 16px 12px 42px', background: 'var(--bg-tertiary)', border: '1px solid var(--border-light)', borderRadius: '12px', color: 'var(--text-primary)', outline: 'none', fontSize: '0.95rem' }}
-                />
+            {/* For Barber Partners */}
+            <div className="landing-feature-card">
+              <div className="landing-feature-icon">
+                <TrendingUp size={24} />
+              </div>
+              <h3 className="landing-feature-title">For Barber Partners</h3>
+              <div className="landing-feature-list">
+                <div className="landing-feature-item">
+                  <Check size={16} />
+                  <span><strong>100% Commission-Free:</strong> Keep every rupee you earn. Zero platform commission fees on bookings.</span>
+                </div>
+                <div className="landing-feature-item">
+                  <Check size={16} />
+                  <span><strong>Powerful Partner Portal:</strong> Manage your opening hours, seating capacity, and custom service catalogs in real time.</span>
+                </div>
+                <div className="landing-feature-item">
+                  <Check size={16} />
+                  <span><strong>No-Show Protection:</strong> View customer booking histories and manage wait times efficiently.</span>
+                </div>
+                <div className="landing-feature-item">
+                  <Check size={16} />
+                  <span><strong>Admin Onboarding Review:</strong> Quick verification process to ensure listings remain premium and high-converting.</span>
+                </div>
               </div>
             </div>
+          </div>
+        </section>
 
-            <div>
-              <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '8px' }}>
-                Password
-              </label>
-              <div style={{ position: 'relative' }}>
-                <Lock size={16} style={{ position: 'absolute', left: '14px', top: '15px', color: 'var(--text-muted)' }} />
-                <input 
-                  type="password"
-                  placeholder="••••••••"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  style={{ width: '100%', padding: '12px 16px 12px 42px', background: 'var(--bg-tertiary)', border: '1px solid var(--border-light)', borderRadius: '12px', color: 'var(--text-primary)', outline: 'none', fontSize: '0.95rem' }}
-                />
+        {/* How It Works Section */}
+        <section className="landing-section" id="how-it-works" style={{ paddingTop: 0 }}>
+          <div className="landing-section-header">
+            <h2 className="landing-section-title">How To List Your Shop</h2>
+            <p className="landing-section-subtitle">
+              Join Bhopal's fastest-growing premium salon network in three straightforward steps.
+            </p>
+          </div>
+          
+          <div className="landing-how-works">
+            <div className="landing-step-card">
+              <span className="landing-step-number">01</span>
+              <h4 className="landing-step-title">Submit Details</h4>
+              <p className="landing-step-desc">
+                Click "Partner with us" to submit your shop name, opening hours, capacity, location, and service pricings.
+              </p>
+            </div>
+            <div className="landing-step-card">
+              <span className="landing-step-number">02</span>
+              <h4 className="landing-step-title">Admin Review</h4>
+              <p className="landing-step-desc">
+                Our admin team verifies your submission details and service listings to activate your profile.
+              </p>
+            </div>
+            <div className="landing-step-card">
+              <span className="landing-step-number">03</span>
+              <h4 className="landing-step-title">Start Receiving Bookings</h4>
+              <p className="landing-step-desc">
+                Log in to your Barber Dashboard to manage calendar bookings, customers, and services instantly!
+              </p>
+            </div>
+          </div>
+        </section>
+
+        {/* CTA Section */}
+        <section className="landing-cta-section">
+          <h2 style={{ fontSize: '2rem', fontWeight: 800 }}>List Your Barber Shop Today</h2>
+          <p style={{ color: 'var(--text-secondary)', maxWidth: '540px', fontSize: '0.95rem', margin: '0 auto' }}>
+            Empower your shop with commission-free digital booking and reach thousands of customers in Bhopal looking for premium grooming.
+          </p>
+          <button 
+            className="gold-glow-btn"
+            style={{ padding: '14px 28px', marginTop: '10px' }}
+            onClick={() => {
+              setOnboardingTab('apply');
+              setOnboardingError('');
+              setOnboardingSuccess(false);
+              setShowOnboardingModal(true);
+            }}
+          >
+            Get Started Now
+          </button>
+        </section>
+
+        {/* Footer */}
+        <footer className="landing-footer">
+          <p>© 2026 Barbo Bhopal. Premium Barber Booking & Onboarding Platform.</p>
+        </footer>
+
+        {/* Login Modal Overlay */}
+        {showLoginModal && (
+          <div className="modal-overlay-backdrop animate-fade-in" onClick={() => setShowLoginModal(false)}>
+            <div 
+              className="glass-card gsap-login-box" 
+              style={{ width: '100%', maxWidth: '440px', padding: '40px 32px', position: 'relative' }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Close Button */}
+              <button 
+                onClick={() => setShowLoginModal(false)}
+                style={{ 
+                  position: 'absolute', 
+                  top: '20px', 
+                  right: '20px', 
+                  background: 'transparent', 
+                  border: 'none', 
+                  color: 'var(--text-secondary)', 
+                  cursor: 'pointer' 
+                }}
+              >
+                <X size={20} />
+              </button>
+
+              {/* Logo Branding */}
+              <div style={{ textAlign: 'center', marginBottom: '24px' }}>
+                <div style={{ display: 'inline-flex', padding: '12px', background: 'var(--accent-gold-glow)', borderRadius: '50%', color: 'var(--accent-gold)', marginBottom: '12px' }}>
+                  <Scissors size={24} />
+                </div>
+                <h2 style={{ fontSize: '1.8rem', textTransform: 'uppercase', letterSpacing: '-0.02em', fontWeight: 800 }}>
+                  BAR<span>BO</span>
+                </h2>
+                <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginTop: '4px' }}>Access your custom portal</p>
               </div>
+
+              {loginError && (
+                <div style={{ background: 'rgba(239, 68, 68, 0.08)', color: 'var(--status-red)', border: '1px solid rgba(239, 68, 68, 0.15)', padding: '12px', borderRadius: '10px', marginBottom: '20px', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <AlertCircle size={16} style={{ flexShrink: 0 }} />
+                  <span>{loginError}</span>
+                </div>
+              )}
+
+              {/* Form */}
+              <form onSubmit={handleLoginSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                {isSignup && (
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '8px' }}>
+                      Full Name
+                    </label>
+                    <div style={{ position: 'relative' }}>
+                      <User size={16} style={{ position: 'absolute', left: '14px', top: '15px', color: 'var(--text-muted)' }} />
+                      <input 
+                        type="text"
+                        placeholder="John Doe"
+                        value={signupName}
+                        onChange={(e) => setSignupName(e.target.value)}
+                        style={{ width: '100%', padding: '12px 16px 12px 42px', background: 'var(--bg-tertiary)', border: '1px solid var(--border-light)', borderRadius: '12px', color: 'var(--text-primary)', outline: 'none', fontSize: '0.95rem' }}
+                      />
+                    </div>
+                  </div>
+                )}
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '8px' }}>
+                    Email Address
+                  </label>
+                  <div style={{ position: 'relative' }}>
+                    <Mail size={16} style={{ position: 'absolute', left: '14px', top: '15px', color: 'var(--text-muted)' }} />
+                    <input 
+                      type="email"
+                      placeholder="name@domain.com"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      style={{ width: '100%', padding: '12px 16px 12px 42px', background: 'var(--bg-tertiary)', border: '1px solid var(--border-light)', borderRadius: '12px', color: 'var(--text-primary)', outline: 'none', fontSize: '0.95rem' }}
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '8px' }}>
+                    Password
+                  </label>
+                  <div style={{ position: 'relative' }}>
+                    <Lock size={16} style={{ position: 'absolute', left: '14px', top: '15px', color: 'var(--text-muted)' }} />
+                    <input 
+                      type="password"
+                      placeholder="••••••••"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      style={{ width: '100%', padding: '12px 16px 12px 42px', background: 'var(--bg-tertiary)', border: '1px solid var(--border-light)', borderRadius: '12px', color: 'var(--text-primary)', outline: 'none', fontSize: '0.95rem' }}
+                    />
+                  </div>
+                </div>
+
+                <button 
+                  type="submit" 
+                  className="gold-glow-btn"
+                  style={{ justifyContent: 'center', marginTop: '10px', padding: '12px' }}
+                >
+                  {isSignup ? 'Create Account' : 'Sign In'}
+                </button>
+              </form>
+
+              <div style={{ textAlign: 'center', marginTop: '16px', fontSize: '0.85rem' }}>
+                <span style={{ color: 'var(--text-secondary)' }}>
+                  {isSignup ? 'Already have an account? ' : "Don't have an account? "}
+                </span>
+                <span 
+                  onClick={() => {
+                    setIsSignup(!isSignup);
+                    setLoginError('');
+                  }} 
+                  style={{ color: 'var(--accent-gold)', cursor: 'pointer', fontWeight: 600, textDecoration: 'underline' }}
+                >
+                  {isSignup ? 'Sign In' : 'Sign Up'}
+                </span>
+              </div>
+
+              {/* Quick Grading Autocompletes */}
+              <div style={{ marginTop: '24px', borderTop: '1px solid var(--border-light)', paddingTop: '16px' }}>
+                <span style={{ fontSize: '0.7rem', fontWeight: 600, color: 'var(--text-muted)', display: 'block', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '8px', textAlign: 'center' }}>
+                  Quick Credentials Autofill
+                </span>
+                <div style={{ display: 'flex', gap: '6px' }}>
+                  <button 
+                    className="btn-secondary" 
+                    style={{ flex: 1, padding: '6px', fontSize: '0.7rem', display: 'flex', flexDirection: 'column', gap: '2px', alignItems: 'center' }}
+                    onClick={() => {
+                      handleQuickLogin('faizan@barbo.in');
+                      setShowLoginModal(false);
+                    }}
+                  >
+                    <span>Faizan</span>
+                    <span style={{ fontSize: '0.6rem', color: 'var(--text-muted)' }}>(Customer)</span>
+                  </button>
+                  <button 
+                    className="btn-secondary" 
+                    style={{ flex: 1, padding: '6px', fontSize: '0.7rem', display: 'flex', flexDirection: 'column', gap: '2px', alignItems: 'center' }}
+                    onClick={() => {
+                      handleQuickLogin('rajesh@barbo.in');
+                      setShowLoginModal(false);
+                    }}
+                  >
+                    <span>Rajesh Sen</span>
+                    <span style={{ fontSize: '0.6rem', color: 'var(--text-muted)' }}>(Barber)</span>
+                  </button>
+                  <button 
+                    className="btn-secondary" 
+                    style={{ flex: 1, padding: '6px', fontSize: '0.7rem', display: 'flex', flexDirection: 'column', gap: '2px', alignItems: 'center' }}
+                    onClick={() => {
+                      handleQuickLogin('admin@barbo.in');
+                      setShowLoginModal(false);
+                    }}
+                  >
+                    <span>Admin</span>
+                    <span style={{ fontSize: '0.6rem', color: 'var(--text-muted)' }}>(Admin)</span>
+                  </button>
+                </div>
+              </div>
+
             </div>
-
-            <button 
-              type="submit" 
-              className="gold-glow-btn"
-              style={{ justifyContent: 'center', marginTop: '10px', padding: '14px' }}
-            >
-              {isSignup ? 'Create Account' : 'Sign In'}
-            </button>
-          </form>
-
-          <div style={{ textAlign: 'center', marginTop: '16px', fontSize: '0.85rem' }}>
-            <span style={{ color: 'var(--text-secondary)' }}>
-              {isSignup ? 'Already have an account? ' : "Don't have an account? "}
-            </span>
-            <span 
-              onClick={() => {
-                setIsSignup(!isSignup);
-                setLoginError('');
-              }} 
-              style={{ color: 'var(--accent-gold)', cursor: 'pointer', fontWeight: 600, textDecoration: 'underline' }}
-            >
-              {isSignup ? 'Sign In' : 'Sign Up'}
-            </span>
           </div>
-
-          {/* Quick Grading Autocompletes */}
-          <div style={{ marginTop: '30px', borderTop: '1px solid var(--border-light)', paddingTop: '24px' }}>
-            <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', display: 'block', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '12px', textAlign: 'center' }}>
-              Quick Credentials Autofill
-            </span>
-            <div style={{ display: 'flex', gap: '10px' }}>
-              <button 
-                className="btn-secondary" 
-                style={{ flex: 1, padding: '8px', fontSize: '0.75rem', display: 'flex', flexDirection: 'column', gap: '2px', alignItems: 'center' }}
-                onClick={() => handleQuickLogin('faizan@barbo.in')}
-              >
-                <span>Faizan</span>
-                <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>(Customer)</span>
-              </button>
-              <button 
-                className="btn-secondary" 
-                style={{ flex: 1, padding: '8px', fontSize: '0.75rem', display: 'flex', flexDirection: 'column', gap: '2px', alignItems: 'center' }}
-                onClick={() => handleQuickLogin('rajesh@barbo.in')}
-              >
-                <span>Rajesh Sen</span>
-                <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>(Barber)</span>
-              </button>
-            </div>
-          </div>
-
-        </div>
+        )}
       </div>
     );
   }
@@ -1728,6 +2268,374 @@ export default function App() {
       )}
 
       {/* ==========================================
+         ADMIN PORTAL VIEW
+         ========================================== */}
+      {currentUser.role === 'admin' && (
+        <main style={{ maxWidth: '1200px', margin: '0 auto', padding: '40px 20px' }}>
+          
+          {/* Admin Header Info */}
+          <div className="gsap-hero" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '20px', flexWrap: 'wrap', marginBottom: '40px' }}>
+            <div style={{ display: 'flex', gap: '20px', alignItems: 'center' }}>
+              <div style={{ display: 'flex', padding: '16px', background: 'var(--accent-gold-glow)', borderRadius: '50%', color: 'var(--accent-gold)' }}>
+                <Settings size={28} />
+              </div>
+              <div>
+                <span className="badge badge-gold" style={{ marginBottom: '8px' }}>System Administrator Console</span>
+                <h1 style={{ fontSize: '2.2rem' }}>Welcome, {currentUser.name}</h1>
+                <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', marginTop: '4px' }}>Review and manage barber onboarding applications</p>
+              </div>
+            </div>
+            
+            <button 
+              onClick={logout} 
+              className="btn-secondary" 
+              style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '12px 20px' }}
+            >
+              <LogOut size={16} /> Sign Out
+            </button>
+          </div>
+
+          {/* Main Dashboard Layout */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(12, 1fr)', gap: '30px' }} className="admin-dashboard-layout">
+            
+            {/* Left Column: Applications List (Col-span-5) */}
+            <div className="glass-card gsap-card" style={{ gridColumn: 'span 5', display: 'flex', flexDirection: 'column', gap: '20px', padding: '24px', height: 'fit-content' }}>
+              <div style={{ borderBottom: '1px solid var(--border-light)', paddingBottom: '12px' }}>
+                <h2 style={{ fontSize: '1.25rem', fontWeight: 700 }}>Applications Queue</h2>
+              </div>
+
+              {loadingAdminApps ? (
+                <div style={{ textAlign: 'center', padding: '40px 0', color: 'var(--text-secondary)' }}>Loading submissions...</div>
+              ) : adminApplications.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '40px 0', color: 'var(--text-secondary)' }}>No applications submitted yet.</div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', maxHeight: '550px', overflowY: 'auto' }}>
+                  {adminApplications.map((app) => {
+                    const isSelected = selectedAdminApp && selectedAdminApp.id === app.id;
+                    return (
+                      <div
+                        key={app.id}
+                        onClick={() => {
+                          setSelectedAdminApp(app);
+                          setIsAdminEditing(false);
+                        }}
+                        style={{
+                          padding: '16px',
+                          borderRadius: '12px',
+                          background: isSelected ? 'var(--accent-gold-glow)' : 'var(--bg-secondary)',
+                          border: isSelected ? '1px solid var(--accent-gold)' : '1px solid var(--border-light)',
+                          cursor: 'pointer',
+                          transition: 'all 0.2s ease',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: '6px'
+                        }}
+                      >
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                          <span style={{ fontWeight: 700, fontSize: '0.95rem', color: 'var(--text-primary)' }}>{app.shopName}</span>
+                          <span 
+                            className={`badge ${
+                              app.status === 'approved' ? 'badge-green' : 
+                              app.status === 'rejected' ? 'badge-red' : 'badge-gold'
+                            }`}
+                            style={{ fontSize: '0.7rem', padding: '2px 6px', textTransform: 'capitalize' }}
+                          >
+                            {app.status}
+                          </span>
+                        </div>
+                        <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Owner: {app.ownerName}</span>
+                        <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                          Submitted: {new Date(app.createdAt).toLocaleDateString()}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* Right Column: Detail View (Col-span-7) */}
+            <div className="glass-card gsap-card" style={{ gridColumn: 'span 7', padding: '28px', height: 'fit-content' }}>
+              {!selectedAdminApp ? (
+                <div style={{ textAlign: 'center', padding: '100px 0', color: 'var(--text-secondary)' }}>
+                  <Building size={48} style={{ color: 'var(--text-muted)', marginBottom: '16px', opacity: 0.5 }} />
+                  <p>Select an application from the queue to view details</p>
+                </div>
+              ) : isAdminEditing ? (
+                /* INLINE EDIT FORM */
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border-light)', paddingBottom: '12px' }}>
+                    <h2 style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--accent-gold)' }}>Edit Application Details</h2>
+                    <button className="btn-secondary" style={{ padding: '6px 12px', fontSize: '0.8rem' }} onClick={() => setIsAdminEditing(false)}>Cancel</button>
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '14px' }}>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.78rem', color: 'var(--text-secondary)', marginBottom: '4px' }}>Shop Name</label>
+                      <input 
+                        type="text" 
+                        value={adminEditShopName}
+                        onChange={(e) => setAdminEditShopName(e.target.value)}
+                        style={{ width: '100%', padding: '8px 10px', background: 'var(--bg-tertiary)', border: '1px solid var(--border-light)', borderRadius: '6px', color: 'var(--text-primary)', outline: 'none' }}
+                      />
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.78rem', color: 'var(--text-secondary)', marginBottom: '4px' }}>Owner / Stylist</label>
+                      <input 
+                        type="text" 
+                        value={adminEditOwnerName}
+                        onChange={(e) => setAdminEditOwnerName(e.target.value)}
+                        style={{ width: '100%', padding: '8px 10px', background: 'var(--bg-tertiary)', border: '1px solid var(--border-light)', borderRadius: '6px', color: 'var(--text-primary)', outline: 'none' }}
+                      />
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.78rem', color: 'var(--text-secondary)', marginBottom: '4px' }}>Contact Number</label>
+                      <input 
+                        type="text" 
+                        value={adminEditContactNumber}
+                        onChange={(e) => setAdminEditContactNumber(e.target.value)}
+                        style={{ width: '100%', padding: '8px 10px', background: 'var(--bg-tertiary)', border: '1px solid var(--border-light)', borderRadius: '6px', color: 'var(--text-primary)', outline: 'none' }}
+                      />
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.78rem', color: 'var(--text-secondary)', marginBottom: '4px' }}>Capacity (Chairs)</label>
+                      <input 
+                        type="number" 
+                        value={adminEditChairsCount}
+                        onChange={(e) => setAdminEditChairsCount(Number(e.target.value))}
+                        style={{ width: '100%', padding: '8px 10px', background: 'var(--bg-tertiary)', border: '1px solid var(--border-light)', borderRadius: '6px', color: 'var(--text-primary)', outline: 'none' }}
+                      />
+                    </div>
+                    <div style={{ gridColumn: 'span 2' }}>
+                      <label style={{ display: 'block', fontSize: '0.78rem', color: 'var(--text-secondary)', marginBottom: '4px' }}>Location Address</label>
+                      <input 
+                        type="text" 
+                        value={adminEditLocation}
+                        onChange={(e) => setAdminEditLocation(e.target.value)}
+                        style={{ width: '100%', padding: '8px 10px', background: 'var(--bg-tertiary)', border: '1px solid var(--border-light)', borderRadius: '6px', color: 'var(--text-primary)', outline: 'none' }}
+                      />
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.78rem', color: 'var(--text-secondary)', marginBottom: '4px' }}>Latitude</label>
+                      <input 
+                        type="text" 
+                        value={adminEditLat}
+                        onChange={(e) => setAdminEditLat(e.target.value)}
+                        style={{ width: '100%', padding: '8px 10px', background: 'var(--bg-tertiary)', border: '1px solid var(--border-light)', borderRadius: '6px', color: 'var(--text-primary)', outline: 'none' }}
+                      />
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.78rem', color: 'var(--text-secondary)', marginBottom: '4px' }}>Longitude</label>
+                      <input 
+                        type="text" 
+                        value={adminEditLon}
+                        onChange={(e) => setAdminEditLon(e.target.value)}
+                        style={{ width: '100%', padding: '8px 10px', background: 'var(--bg-tertiary)', border: '1px solid var(--border-light)', borderRadius: '6px', color: 'var(--text-primary)', outline: 'none' }}
+                      />
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.78rem', color: 'var(--text-secondary)', marginBottom: '4px' }}>Opening Time</label>
+                      <input 
+                        type="text" 
+                        value={adminEditOpeningTime}
+                        onChange={(e) => setAdminEditOpeningTime(e.target.value)}
+                        style={{ width: '100%', padding: '8px 10px', background: 'var(--bg-tertiary)', border: '1px solid var(--border-light)', borderRadius: '6px', color: 'var(--text-primary)', outline: 'none' }}
+                      />
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.78rem', color: 'var(--text-secondary)', marginBottom: '4px' }}>Closing Time</label>
+                      <input 
+                        type="text" 
+                        value={adminEditClosingTime}
+                        onChange={(e) => setAdminEditClosingTime(e.target.value)}
+                        style={{ width: '100%', padding: '8px 10px', background: 'var(--bg-tertiary)', border: '1px solid var(--border-light)', borderRadius: '6px', color: 'var(--text-primary)', outline: 'none' }}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Services Edit list */}
+                  <div style={{ borderTop: '1px solid var(--border-light)', paddingTop: '14px' }}>
+                    <span style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: '8px' }}>Services & Rates</span>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '12px' }}>
+                      {adminEditServices.map((service, index) => (
+                        <div 
+                          key={index} 
+                          style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--bg-secondary)', padding: '6px 10px', borderRadius: '6px', fontSize: '0.85rem', border: '1px solid var(--border-light)' }}
+                        >
+                          <span>{service.name} (₹{service.price} | {service.durationMinutes} min)</span>
+                          <button type="button" onClick={() => handleRemoveAdminService(index)} style={{ background: 'none', border: 'none', color: 'var(--status-red)', cursor: 'pointer' }}><Trash size={14} /></button>
+                        </div>
+                      ))}
+                    </div>
+
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                      <input 
+                        type="text" 
+                        placeholder="Service name"
+                        value={newServiceName}
+                        onChange={(e) => setNewServiceName(e.target.value)}
+                        style={{ flex: 2, padding: '6px 8px', background: 'var(--bg-tertiary)', border: '1px solid var(--border-light)', borderRadius: '6px', color: 'var(--text-primary)', fontSize: '0.82rem' }}
+                      />
+                      <input 
+                        type="number" 
+                        placeholder="Price"
+                        value={newServicePrice}
+                        onChange={(e) => setNewServicePrice(e.target.value)}
+                        style={{ flex: 1, padding: '6px 8px', background: 'var(--bg-tertiary)', border: '1px solid var(--border-light)', borderRadius: '6px', color: 'var(--text-primary)', fontSize: '0.82rem' }}
+                      />
+                      <input 
+                        type="number" 
+                        placeholder="Mins"
+                        value={newServiceDuration}
+                        onChange={(e) => setNewServiceDuration(e.target.value)}
+                        style={{ flex: 1, padding: '6px 8px', background: 'var(--bg-tertiary)', border: '1px solid var(--border-light)', borderRadius: '6px', color: 'var(--text-primary)', fontSize: '0.82rem' }}
+                      />
+                      <button type="button" className="btn-secondary" onClick={handleAddAdminService} style={{ padding: '6px 10px', fontSize: '0.82rem' }}><Plus size={14} /></button>
+                    </div>
+                  </div>
+
+                  <button className="gold-glow-btn" onClick={handleSaveAdminEdit} style={{ padding: '12px', justifyContent: 'center' }}>Save Changes</button>
+                </div>
+              ) : (
+                /* VIEW MODE APPLICATION DETAILS */
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+                  
+                  {/* Title & Status */}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border-light)', paddingBottom: '16px' }}>
+                    <div>
+                      <h2 style={{ fontSize: '1.5rem', fontWeight: 800, color: 'var(--text-primary)' }}>{selectedAdminApp.shopName}</h2>
+                      <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Application ID: #{selectedAdminApp.id}</span>
+                    </div>
+                    <span 
+                      className={`badge ${
+                        selectedAdminApp.status === 'approved' ? 'badge-green' : 
+                        selectedAdminApp.status === 'rejected' ? 'badge-red' : 'badge-gold'
+                      }`}
+                      style={{ fontSize: '0.85rem', padding: '6px 12px', textTransform: 'capitalize' }}
+                    >
+                      {selectedAdminApp.status}
+                    </span>
+                  </div>
+
+                  {/* Actions Feedback Alert */}
+                  {adminActionFeedback && (
+                    <div style={{ background: 'rgba(34, 197, 94, 0.08)', color: 'var(--status-green)', border: '1px solid rgba(34, 197, 94, 0.15)', padding: '12px', borderRadius: '10px', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <CheckCircle size={16} />
+                      <span>{adminActionFeedback}</span>
+                    </div>
+                  )}
+
+                  {adminActionError && (
+                    <div style={{ background: 'rgba(239, 68, 68, 0.08)', color: 'var(--status-red)', border: '1px solid rgba(239, 68, 68, 0.15)', padding: '12px', borderRadius: '10px', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <AlertCircle size={16} />
+                      <span>{adminActionError}</span>
+                    </div>
+                  )}
+
+                  {/* Detail Grid */}
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '20px', background: 'var(--bg-secondary)', padding: '20px', borderRadius: '12px', border: '1px solid var(--border-light)' }}>
+                    <div>
+                      <span style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Owner Name</span>
+                      <strong style={{ color: 'var(--text-primary)', fontSize: '0.95rem' }}>{selectedAdminApp.ownerName}</strong>
+                    </div>
+                    <div>
+                      <span style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Contact Email</span>
+                      <strong style={{ color: 'var(--text-primary)', fontSize: '0.95rem' }}>{selectedAdminApp.email}</strong>
+                    </div>
+                    <div>
+                      <span style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Phone Number</span>
+                      <strong style={{ color: 'var(--text-primary)', fontSize: '0.95rem' }}>{selectedAdminApp.contactNumber}</strong>
+                    </div>
+                    <div>
+                      <span style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Capacity</span>
+                      <strong style={{ color: 'var(--text-primary)', fontSize: '0.95rem' }}>{selectedAdminApp.chairsCount} Barber Chairs</strong>
+                    </div>
+                    <div>
+                      <span style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Operating Hours</span>
+                      <strong style={{ color: 'var(--text-primary)', fontSize: '0.95rem' }}>{selectedAdminApp.openingTime} - {selectedAdminApp.closingTime}</strong>
+                    </div>
+                    <div>
+                      <span style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Coordinates</span>
+                      <strong style={{ color: 'var(--text-primary)', fontSize: '0.95rem' }}>Lat: {selectedAdminApp.lat}, Lon: {selectedAdminApp.lon}</strong>
+                    </div>
+                    <div style={{ gridColumn: 'span 2' }}>
+                      <span style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Address Location</span>
+                      <strong style={{ color: 'var(--text-primary)', fontSize: '0.95rem' }}>{selectedAdminApp.location}</strong>
+                    </div>
+                  </div>
+
+                  {/* Services offered list */}
+                  <div>
+                    <h3 style={{ fontSize: '1.1rem', fontWeight: 700, marginBottom: '12px' }}>Offered Services</h3>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: '10px' }}>
+                      {selectedAdminApp.services && selectedAdminApp.services.map((s: any, idx: number) => (
+                        <div key={idx} style={{ padding: '12px', background: 'var(--bg-tertiary)', border: '1px solid var(--border-light)', borderRadius: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <span style={{ fontSize: '0.88rem', fontWeight: 600, color: 'var(--text-primary)' }}>{s.name}</span>
+                          <span style={{ fontSize: '0.8rem', color: 'var(--accent-gold)' }}>₹{s.price} | {s.durationMinutes} min</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {selectedAdminApp.status === 'rejected' && (
+                    <div 
+                      style={{ 
+                        background: 'rgba(239, 68, 68, 0.05)', 
+                        border: '1px solid rgba(239, 68, 68, 0.15)', 
+                        borderRadius: '12px', 
+                        padding: '16px',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '6px'
+                      }}
+                    >
+                      <strong style={{ color: 'var(--status-red)', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <AlertTriangle size={16} /> REJECTION REVISION FEEDBACK
+                      </strong>
+                      <p style={{ margin: 0, fontSize: '0.9rem', color: 'var(--text-primary)', lineHeight: '1.4' }}>
+                        {selectedAdminApp.rejectionFeedback || 'No feedback comments provided.'}
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Approval / Rejection Controls */}
+                  {selectedAdminApp.status === 'pending' && (
+                    <div style={{ display: 'flex', gap: '12px', borderTop: '1px solid var(--border-light)', paddingTop: '20px' }}>
+                      <button 
+                        className="btn-danger" 
+                        style={{ flex: 1, padding: '12px', justifyContent: 'center' }}
+                        onClick={() => {
+                          setRejectFeedbackText('');
+                          setShowRejectFeedbackModal(true);
+                        }}
+                      >
+                        <XCircle size={16} style={{ marginRight: '6px' }} /> Reject Application
+                      </button>
+                      <button 
+                        className="btn-secondary" 
+                        style={{ flex: 1, padding: '12px', justifyContent: 'center' }}
+                        onClick={() => handleStartAdminEdit(selectedAdminApp)}
+                      >
+                        <Edit size={16} style={{ marginRight: '6px' }} /> Edit Details
+                      </button>
+                      <button 
+                        className="gold-glow-btn" 
+                        style={{ flex: 1.5, padding: '12px', justifyContent: 'center' }}
+                        onClick={() => handleAdminApprove(selectedAdminApp.id)}
+                      >
+                        <CheckCircle size={16} style={{ marginRight: '6px' }} /> Approve & Publish
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+          </div>
+        </main>
+      )}
+
+      {/* ==========================================
          BOOKING SHEET MODAL
          ========================================== */}
       {isBookingOpen && selectedBarber && (
@@ -2494,6 +3402,490 @@ export default function App() {
               </div>
             </div>
 
+          </div>
+        </div>
+      )}
+
+      {/* Onboarding Form Modal */}
+      {showOnboardingModal && (
+        <div className="modal-backdrop animate-fade-in" onClick={() => setShowOnboardingModal(false)}>
+          <div 
+            className="glass-card gsap-modal" 
+            style={{ width: '100%', maxWidth: '720px', maxHeight: '90vh', overflowY: 'auto', zIndex: 1100, opacity: 0 }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+              <div>
+                <h2 style={{ fontSize: '1.6rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <Building size={22} style={{ color: 'var(--accent-gold)' }} />
+                  Partner with Barbo
+                </h2>
+                <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
+                  Get your salon listed on Bhopal's premium grooming network
+                </p>
+              </div>
+              <button 
+                onClick={() => setShowOnboardingModal(false)} 
+                style={{ background: 'transparent', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer' }}
+              >
+                <X size={24} />
+              </button>
+            </div>
+
+            {/* Tabs */}
+            <div style={{ display: 'flex', borderBottom: '1px solid var(--border-light)', marginBottom: '24px' }}>
+              <button 
+                onClick={() => setOnboardingTab('apply')}
+                style={{ 
+                  flex: 1, 
+                  padding: '12px', 
+                  background: 'transparent', 
+                  border: 'none', 
+                  borderBottom: onboardingTab === 'apply' ? '2px solid var(--accent-gold)' : '2px solid transparent',
+                  color: onboardingTab === 'apply' ? 'var(--accent-gold)' : 'var(--text-secondary)',
+                  fontWeight: 600,
+                  cursor: 'pointer'
+                }}
+              >
+                Apply for Listing
+              </button>
+              <button 
+                onClick={() => setOnboardingTab('status')}
+                style={{ 
+                  flex: 1, 
+                  padding: '12px', 
+                  background: 'transparent', 
+                  border: 'none', 
+                  borderBottom: onboardingTab === 'status' ? '2px solid var(--accent-gold)' : '2px solid transparent',
+                  color: onboardingTab === 'status' ? 'var(--accent-gold)' : 'var(--text-secondary)',
+                  fontWeight: 600,
+                  cursor: 'pointer'
+                }}
+              >
+                Check Application Status
+              </button>
+            </div>
+
+            {/* Apply Tab */}
+            {onboardingTab === 'apply' && (
+              <div>
+                {onboardingSuccess ? (
+                  <div style={{ padding: '30px 20px', textAlign: 'center' }}>
+                    <CheckCircle size={48} style={{ color: 'var(--accent-gold)', marginBottom: '16px', marginLeft: 'auto', marginRight: 'auto', display: 'block' }} />
+                    <h3 style={{ fontSize: '1.25rem', marginBottom: '8px' }}>Application Submitted!</h3>
+                    <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', marginBottom: '20px', lineHeight: '1.5' }}>
+                      Thank you for applying. Our admin team will review your application within 24 hours. You can check the status anytime using your email: <strong>{onboardingEmailInput || onboardingEmail}</strong>
+                    </p>
+                    <button className="gold-glow-btn" onClick={() => setShowOnboardingModal(false)}>
+                      Close Portal
+                    </button>
+                  </div>
+                ) : (
+                  <form onSubmit={handleOnboardingSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                    {onboardingError && (
+                      <div style={{ background: 'rgba(239, 68, 68, 0.08)', color: 'var(--status-red)', border: '1px solid rgba(239, 68, 68, 0.15)', padding: '12px', borderRadius: '8px', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <AlertCircle size={16} />
+                        <span>{onboardingError}</span>
+                      </div>
+                    )}
+
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                      <div>
+                        <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '8px' }}>
+                          Shop/Salon Name
+                        </label>
+                        <input 
+                          type="text" 
+                          placeholder="e.g. Royal Barber Shop"
+                          value={onboardingShopName}
+                          onChange={(e) => setOnboardingShopName(e.target.value)}
+                          style={{ width: '100%', padding: '12px', background: 'var(--bg-tertiary)', border: '1px solid var(--border-light)', borderRadius: '10px', color: 'var(--text-primary)', outline: 'none' }}
+                          required
+                        />
+                      </div>
+                      <div>
+                        <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '8px' }}>
+                          Owner / Main Barber Name
+                        </label>
+                        <input 
+                          type="text" 
+                          placeholder="e.g. Rajesh Kumar"
+                          value={onboardingOwnerName}
+                          onChange={(e) => setOnboardingOwnerName(e.target.value)}
+                          style={{ width: '100%', padding: '12px', background: 'var(--bg-tertiary)', border: '1px solid var(--border-light)', borderRadius: '10px', color: 'var(--text-primary)', outline: 'none' }}
+                          required
+                        />
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                      <div>
+                        <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '8px' }}>
+                          Contact Email (For logins)
+                        </label>
+                        <input 
+                          type="email" 
+                          placeholder="e.g. owner@shop.com"
+                          value={onboardingEmail}
+                          onChange={(e) => setOnboardingEmail(e.target.value)}
+                          style={{ width: '100%', padding: '12px', background: 'var(--bg-tertiary)', border: '1px solid var(--border-light)', borderRadius: '10px', color: 'var(--text-primary)', outline: 'none' }}
+                          required
+                        />
+                      </div>
+                      <div>
+                        <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '8px' }}>
+                          Contact Number
+                        </label>
+                        <input 
+                          type="tel" 
+                          placeholder="e.g. 9876543210"
+                          value={onboardingContactNumber}
+                          onChange={(e) => setOnboardingContactNumber(e.target.value)}
+                          style={{ width: '100%', padding: '12px', background: 'var(--bg-tertiary)', border: '1px solid var(--border-light)', borderRadius: '10px', color: 'var(--text-primary)', outline: 'none' }}
+                          required
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '8px' }}>
+                        Shop Location Address (Bhopal)
+                      </label>
+                      <input 
+                        type="text" 
+                        placeholder="e.g. Plot 42, MP Nagar Zone 2, Bhopal"
+                        value={onboardingLocation}
+                        onChange={(e) => setOnboardingLocation(e.target.value)}
+                        style={{ width: '100%', padding: '12px', background: 'var(--bg-tertiary)', border: '1px solid var(--border-light)', borderRadius: '10px', color: 'var(--text-primary)', outline: 'none' }}
+                        required
+                      />
+                    </div>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px' }}>
+                      <div>
+                        <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '8px' }}>
+                          Latitude (Bhopal coords)
+                        </label>
+                        <input 
+                          type="text" 
+                          value={onboardingLat}
+                          onChange={(e) => setOnboardingLat(e.target.value)}
+                          style={{ width: '100%', padding: '12px', background: 'var(--bg-tertiary)', border: '1px solid var(--border-light)', borderRadius: '10px', color: 'var(--text-primary)', outline: 'none' }}
+                        />
+                      </div>
+                      <div>
+                        <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '8px' }}>
+                          Longitude (Bhopal coords)
+                        </label>
+                        <input 
+                          type="text" 
+                          value={onboardingLon}
+                          onChange={(e) => setOnboardingLon(e.target.value)}
+                          style={{ width: '100%', padding: '12px', background: 'var(--bg-tertiary)', border: '1px solid var(--border-light)', borderRadius: '10px', color: 'var(--text-primary)', outline: 'none' }}
+                        />
+                      </div>
+                      <div>
+                        <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '8px' }}>
+                          Stylist Chairs Count
+                        </label>
+                        <input 
+                          type="number" 
+                          min={1} 
+                          max={15}
+                          value={onboardingChairsCount}
+                          onChange={(e) => setOnboardingChairsCount(Number(e.target.value) || 2)}
+                          style={{ width: '100%', padding: '12px', background: 'var(--bg-tertiary)', border: '1px solid var(--border-light)', borderRadius: '10px', color: 'var(--text-primary)', outline: 'none' }}
+                        />
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                      <div>
+                        <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '8px' }}>
+                          Opening Hours (24hr format)
+                        </label>
+                        <input 
+                          type="time" 
+                          value={onboardingOpeningTime}
+                          onChange={(e) => setOnboardingOpeningTime(e.target.value)}
+                          style={{ width: '100%', padding: '12px', background: 'var(--bg-tertiary)', border: '1px solid var(--border-light)', borderRadius: '10px', color: 'var(--text-primary)', outline: 'none' }}
+                        />
+                      </div>
+                      <div>
+                        <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '8px' }}>
+                          Closing Hours (24hr format)
+                        </label>
+                        <input 
+                          type="time" 
+                          value={onboardingClosingTime}
+                          onChange={(e) => setOnboardingClosingTime(e.target.value)}
+                          style={{ width: '100%', padding: '12px', background: 'var(--bg-tertiary)', border: '1px solid var(--border-light)', borderRadius: '10px', color: 'var(--text-primary)', outline: 'none' }}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Services Manager */}
+                    <div style={{ borderTop: '1px solid var(--border-light)', paddingTop: '20px' }}>
+                      <h4 style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '4px' }}>
+                        Services Offered & Price Menus
+                      </h4>
+                      <p style={{ color: 'var(--text-secondary)', fontSize: '0.8rem', marginBottom: '16px' }}>
+                        Add services that clients can book at your shop.
+                      </p>
+
+                      <div style={{ display: 'flex', gap: '10px', marginBottom: '16px', flexWrap: 'wrap' }}>
+                        <input 
+                          type="text" 
+                          placeholder="Service Name (e.g. Haircut)"
+                          value={newServiceName}
+                          onChange={(e) => setNewServiceName(e.target.value)}
+                          style={{ flex: 2, minWidth: '160px', padding: '10px', background: 'var(--bg-tertiary)', border: '1px solid var(--border-light)', borderRadius: '8px', color: 'var(--text-primary)', outline: 'none', fontSize: '0.88rem' }}
+                        />
+                        <input 
+                          type="number" 
+                          placeholder="Price (₹)"
+                          value={newServicePrice}
+                          onChange={(e) => setNewServicePrice(e.target.value)}
+                          style={{ flex: 1, minWidth: '80px', padding: '10px', background: 'var(--bg-tertiary)', border: '1px solid var(--border-light)', borderRadius: '8px', color: 'var(--text-primary)', outline: 'none', fontSize: '0.88rem' }}
+                        />
+                        <input 
+                          type="number" 
+                          placeholder="Mins"
+                          value={newServiceDuration}
+                          onChange={(e) => setNewServiceDuration(e.target.value)}
+                          style={{ flex: 1, minWidth: '80px', padding: '10px', background: 'var(--bg-tertiary)', border: '1px solid var(--border-light)', borderRadius: '8px', color: 'var(--text-primary)', outline: 'none', fontSize: '0.88rem' }}
+                        />
+                        <button 
+                          type="button" 
+                          className="btn-secondary" 
+                          style={{ padding: '10px 16px', fontSize: '0.88rem' }}
+                          onClick={handleAddOnboardingService}
+                        >
+                          <Plus size={16} /> Add
+                        </button>
+                      </div>
+
+                      {/* Services list */}
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                        {onboardingServices.map((srv, idx) => (
+                          <div 
+                            key={idx} 
+                            style={{ 
+                              display: 'flex', 
+                              justifyContent: 'space-between', 
+                              alignItems: 'center', 
+                              background: 'rgba(255, 255, 255, 0.02)', 
+                              border: '1px solid var(--border-light)', 
+                              borderRadius: '8px', 
+                              padding: '10px 16px' 
+                            }}
+                          >
+                            <div>
+                              <strong style={{ fontSize: '0.9rem', color: 'var(--text-primary)' }}>{srv.name}</strong>
+                              <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginLeft: '12px' }}>
+                                {srv.durationMinutes} minutes
+                              </span>
+                            </div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                              <span style={{ fontWeight: 600, color: 'var(--accent-gold)', fontSize: '0.9rem' }}>
+                                ₹{srv.price}
+                              </span>
+                              <button 
+                                type="button" 
+                                style={{ background: 'transparent', border: 'none', color: 'var(--status-red)', cursor: 'pointer' }}
+                                onClick={() => handleRemoveOnboardingService(idx)}
+                              >
+                                <Trash size={16} />
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    <button 
+                      type="submit" 
+                      className="gold-glow-btn"
+                      style={{ padding: '14px', justifyContent: 'center', width: '100%', marginTop: '10px' }}
+                      disabled={submittingOnboarding}
+                    >
+                      {submittingOnboarding ? 'Submitting Application...' : 'Submit Partnership Application'}
+                    </button>
+                  </form>
+                )}
+              </div>
+            )}
+
+            {/* Check Status Tab */}
+            {onboardingTab === 'status' && (
+              <div>
+                <form onSubmit={handleCheckStatus} style={{ display: 'flex', gap: '10px', marginBottom: '24px' }}>
+                  <input 
+                    type="email" 
+                    placeholder="Enter your application email address"
+                    value={onboardingEmailInput}
+                    onChange={(e) => setOnboardingEmailInput(e.target.value)}
+                    style={{ flex: 1, padding: '12px', background: 'var(--bg-tertiary)', border: '1px solid var(--border-light)', borderRadius: '10px', color: 'var(--text-primary)', outline: 'none' }}
+                    required
+                  />
+                  <button 
+                    type="submit" 
+                    className="gold-glow-btn" 
+                    style={{ padding: '12px 20px' }}
+                    disabled={checkingStatus}
+                  >
+                    {checkingStatus ? 'Checking...' : 'Check Status'}
+                  </button>
+                </form>
+
+                {statusMessage && (
+                  <div style={{ background: 'rgba(255, 255, 255, 0.02)', border: '1px solid var(--border-light)', padding: '16px', borderRadius: '10px', textAlign: 'center', color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
+                    {statusMessage}
+                  </div>
+                )}
+
+                {checkedApplication && (
+                  <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '16px', background: 'var(--bg-tertiary)', border: '1px solid var(--border-light)', borderRadius: '12px', padding: '20px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <h4 style={{ fontSize: '1.1rem', fontWeight: 700 }}>{checkedApplication.shopName}</h4>
+                      
+                      {checkedApplication.status === 'approved' && (
+                        <span style={{ background: 'rgba(56, 189, 248, 0.1)', color: 'var(--status-green)', border: '1px solid rgba(56, 189, 248, 0.2)', padding: '4px 10px', borderRadius: '20px', fontSize: '0.75rem', fontWeight: 600, textTransform: 'uppercase' }}>
+                          Approved
+                        </span>
+                      )}
+                      {checkedApplication.status === 'pending' && (
+                        <span style={{ background: 'rgba(251, 191, 36, 0.1)', color: 'var(--status-amber)', border: '1px solid rgba(251, 191, 36, 0.2)', padding: '4px 10px', borderRadius: '20px', fontSize: '0.75rem', fontWeight: 600, textTransform: 'uppercase' }}>
+                          Pending Review
+                        </span>
+                      )}
+                      {checkedApplication.status === 'rejected' && (
+                        <span style={{ background: 'rgba(239, 68, 68, 0.1)', color: 'var(--status-red)', border: '1px solid rgba(239, 68, 68, 0.2)', padding: '4px 10px', borderRadius: '20px', fontSize: '0.75rem', fontWeight: 600, textTransform: 'uppercase' }}>
+                          Revisions Required
+                        </span>
+                      )}
+                    </div>
+
+                    <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                      <div><strong>Owner:</strong> {checkedApplication.ownerName}</div>
+                      <div><strong>Phone:</strong> {checkedApplication.contactNumber}</div>
+                      <div><strong>Hours:</strong> {checkedApplication.openingTime} - {checkedApplication.closingTime}</div>
+                      <div><strong>Chairs:</strong> {checkedApplication.chairsCount} Stylist Seats</div>
+                    </div>
+
+                    {checkedApplication.status === 'rejected' && (
+                      <div 
+                        style={{ 
+                          background: 'rgba(239, 68, 68, 0.05)', 
+                          border: '1px solid rgba(239, 68, 68, 0.15)', 
+                          borderRadius: '8px', 
+                          padding: '12px', 
+                          marginTop: '8px',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: '6px'
+                        }}
+                      >
+                        <strong style={{ color: 'var(--status-red)', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <AlertTriangle size={14} /> ADMIN FEEDBACK COMMENTS:
+                        </strong>
+                        <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-primary)', lineHeight: '1.4' }}>
+                          {checkedApplication.rejectionFeedback || 'Please review your shop details and resubmit.'}
+                        </p>
+                        
+                        <button 
+                          className="btn-danger" 
+                          style={{ marginTop: '10px', padding: '10px', justifyContent: 'center', width: '100%', fontSize: '0.85rem' }}
+                          onClick={() => handleEditAndResubmit(checkedApplication)}
+                        >
+                          <Edit size={14} style={{ marginRight: '6px' }} /> Edit Details & Resubmit
+                        </button>
+                      </div>
+                    )}
+
+                    {checkedApplication.status === 'approved' && (
+                      <div 
+                        style={{ 
+                          background: 'rgba(56, 189, 248, 0.05)', 
+                          border: '1px solid rgba(56, 189, 248, 0.15)', 
+                          borderRadius: '8px', 
+                          padding: '16px', 
+                          marginTop: '8px',
+                          textAlign: 'center'
+                        }}
+                      >
+                        <p style={{ margin: '0 0 12px 0', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                          Congratulations! Your shop has been approved. You can log in as a Barber with:
+                          <br />Email: <strong>{checkedApplication.email}</strong> / Password: <strong>123456</strong>
+                        </p>
+                        <button 
+                          className="gold-glow-btn"
+                          style={{ padding: '8px 16px', fontSize: '0.85rem' }}
+                          onClick={() => {
+                            setShowOnboardingModal(false);
+                            setEmail(checkedApplication.email);
+                            setPassword('123456');
+                            setIsSignup(false);
+                            setShowLoginModal(true);
+                          }}
+                        >
+                          Proceed to Log In
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Reject Feedback Comment Modal Overlay */}
+      {showRejectFeedbackModal && (
+        <div className="modal-backdrop animate-fade-in" onClick={() => setShowRejectFeedbackModal(false)}>
+          <div 
+            className="glass-card gsap-modal" 
+            style={{ width: '100%', maxWidth: '460px', zIndex: 1200 }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 style={{ fontSize: '1.25rem', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <AlertTriangle style={{ color: 'var(--status-red)' }} size={20} />
+              Reject Application
+            </h3>
+            <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginBottom: '16px' }}>
+              Provide clear details or instructions on what changes the applicant needs to make before resubmitting.
+            </p>
+
+            <textarea 
+              placeholder="e.g. Please adjust the Classic Haircut price to at least ₹150 and list your main barber names in the services."
+              value={rejectFeedbackText}
+              onChange={(e) => setRejectFeedbackText(e.target.value)}
+              rows={4}
+              style={{ width: '100%', padding: '12px', background: 'var(--bg-tertiary)', border: '1px solid var(--border-light)', borderRadius: '10px', color: 'var(--text-primary)', outline: 'none', resize: 'none', fontSize: '0.88rem', marginBottom: '20px' }}
+              required
+            />
+
+            <div style={{ display: 'flex', gap: '12px' }}>
+              <button 
+                className="btn-secondary" 
+                style={{ flex: 1, padding: '12px', justifyContent: 'center' }}
+                onClick={() => {
+                  setShowRejectFeedbackModal(false);
+                  setRejectFeedbackText('');
+                }}
+              >
+                Cancel
+              </button>
+              <button 
+                className="btn-danger" 
+                style={{ flex: 1.5, padding: '12px', justifyContent: 'center' }}
+                onClick={handleAdminRejectSubmit}
+              >
+                Confirm Rejection
+              </button>
+            </div>
           </div>
         </div>
       )}
