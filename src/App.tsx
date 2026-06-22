@@ -642,10 +642,41 @@ export default function App() {
       setOnboardingError('Please fill in all basic shop information.');
       return;
     }
+    
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(onboardingEmail.trim())) {
+      setOnboardingError('Please enter a valid email address.');
+      return;
+    }
+
+    // Validate contact number (exactly 10 digits after stripping non-numeric characters)
+    const cleanedContact = onboardingContactNumber.trim().replace(/\D/g, '');
+    if (cleanedContact.length !== 10) {
+      setOnboardingError('Contact number must be exactly 10 digits (e.g. 9876543210).');
+      return;
+    }
+
     if (!onboardingMapsUrl.trim()) {
       setOnboardingError('Please provide a Google Maps URL for your shop.');
       return;
     }
+
+    // Validate Google Maps Link format
+    const isGoogleMaps = (url: string) => {
+      const trimmed = url.trim();
+      if (!trimmed.startsWith('http://') && !trimmed.startsWith('https://')) {
+        return false;
+      }
+      return /google\..*\/maps/i.test(trimmed) || 
+             /maps\.app\.goo\.gl/i.test(trimmed) || 
+             /goo\.gl\/maps/i.test(trimmed);
+    };
+    if (!isGoogleMaps(onboardingMapsUrl)) {
+      setOnboardingError('Please enter a valid Google Maps link (e.g. https://maps.app.goo.gl/... or https://google.com/maps/...).');
+      return;
+    }
+
     if (onboardingServices.length === 0) {
       setOnboardingError('Please add at least one service offered by your shop.');
       return;

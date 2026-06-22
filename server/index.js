@@ -985,6 +985,32 @@ app.post('/api/onboarding/apply', async (req, res) => {
     return res.status(400).json({ success: false, message: 'All shop details, Google Maps URL, and at least one service are required' });
   }
 
+  // Validate email format
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (!emailRegex.test(email.trim())) {
+    return res.status(400).json({ success: false, message: 'Invalid email address format' });
+  }
+
+  // Validate contact number (exactly 10 digits after stripping non-numeric characters)
+  const cleanedContact = contactNumber.trim().replace(/\D/g, '');
+  if (cleanedContact.length !== 10) {
+    return res.status(400).json({ success: false, message: 'Contact number must be exactly 10 digits (e.g. 9876543210)' });
+  }
+
+  // Validate Google Maps URL format
+  const isGoogleMaps = (url) => {
+    const trimmed = url.trim();
+    if (!trimmed.startsWith('http://') && !trimmed.startsWith('https://')) {
+      return false;
+    }
+    return /google\..*\/maps/i.test(trimmed) || 
+           /maps\.app\.goo\.gl/i.test(trimmed) || 
+           /goo\.gl\/maps/i.test(trimmed);
+  };
+  if (!isGoogleMaps(mapsUrl)) {
+    return res.status(400).json({ success: false, message: 'Invalid Google Maps URL link' });
+  }
+
   const trimmedEmail = email.trim().toLowerCase();
   const conn = await pool.getConnection();
 
