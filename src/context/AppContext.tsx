@@ -537,8 +537,11 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     }
   }, [currentUser]);
 
-  // Load initial services catalog from database
+  // Load initial services catalog from database (only if no local data exists)
   useEffect(() => {
+    const hasLocalServices = localStorage.getItem('barbo_services');
+    if (hasLocalServices) return; // Preserve locally-edited services
+
     const fetchServices = async () => {
       try {
         const res = await fetch(`${BASE_URL}/services`);
@@ -553,17 +556,20 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     fetchServices();
   }, []);
 
-  // Load barbers based on center coordinates
+  // Load barbers based on center coordinates (only if no local data exists)
   useEffect(() => {
+    const hasLocalBarbers = localStorage.getItem('barbo_barbers');
     const initLocal = async () => {
       setIsMapLoading(true);
       const lat = userCoordinates?.lat || 23.2495;
       const lng = userCoordinates?.lng || 77.4172;
       try {
-        const res = await fetch(`${BASE_URL}/barbers?lat=${lat}&lng=${lng}`);
-        if (res.ok) {
-          const data = await res.json();
-          setBarbers(data);
+        if (!hasLocalBarbers) {
+          const res = await fetch(`${BASE_URL}/barbers?lat=${lat}&lng=${lng}`);
+          if (res.ok) {
+            const data = await res.json();
+            setBarbers(data);
+          }
         }
       } catch (err) {
         console.warn("Failed to load barbers from backend. Using offline seeds fallback.");
