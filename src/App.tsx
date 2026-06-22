@@ -25,11 +25,9 @@ import {
   Trash,
   Edit,
   Building,
-  Check,
   Settings,
   XCircle,
-  ArrowRight,
-  TrendingUp
+  ArrowRight
 } from 'lucide-react';
 import { gsap } from 'gsap';
 
@@ -1075,11 +1073,6 @@ export default function App() {
             <Scissors size={20} />
             BAR<span>BO</span>
           </div>
-          <nav className="landing-nav-links">
-            <a href="#discover" className="landing-nav-link">Discover</a>
-            <a href="#features" className="landing-nav-link">Features</a>
-            <a href="#how-it-works" className="landing-nav-link">How It Works</a>
-          </nav>
           <div className="landing-nav-actions">
             <button 
               className="btn-secondary" 
@@ -1106,21 +1099,21 @@ export default function App() {
           </div>
         </header>
 
-        {/* Hero Section */}
-        <section className="landing-hero" id="discover">
+        {/* Crisp Hero Section */}
+        <section className="landing-hero" style={{ flex: 1, display: 'flex', justifyContent: 'center', minHeight: 'calc(100vh - 160px)' }}>
           <div className="landing-badge">
-            <Sparkles size={14} /> Bhopal's Premier Grooming Network
+            <Sparkles size={14} /> Bhopal's Premium Grooming Network
           </div>
-          <h1 className="landing-title">
-            Grooming <span>Elevated</span>.<br />Booking <span>Simplified</span>.
+          <h1 className="landing-title" style={{ fontSize: '4.2rem', marginBottom: '8px' }}>
+            Grooming, <span>Elevated</span>.
           </h1>
-          <p className="landing-subtitle">
-            Discover verified elite salons, view dynamic price menus, and book your perfect slot in under 30 seconds. No prepayments needed.
+          <p className="landing-subtitle" style={{ fontSize: '1.25rem', marginBottom: '16px' }}>
+            Find the finest barbers in Bhopal or partner with us to list your salon today.
           </p>
           <div className="landing-hero-actions">
             <button 
               className="gold-glow-btn"
-              style={{ padding: '14px 28px' }}
+              style={{ padding: '16px 32px', fontSize: '1.05rem' }}
               onClick={() => {
                 setOnboardingTab('apply');
                 setOnboardingError('');
@@ -1128,155 +1121,9 @@ export default function App() {
                 setShowOnboardingModal(true);
               }}
             >
-              Partner with Us <ArrowRight size={16} />
-            </button>
-            <button 
-              className="btn-secondary"
-              style={{ padding: '14px 28px' }}
-              onClick={() => {
-                setOnboardingTab('status');
-                setOnboardingError('');
-                setOnboardingSuccess(false);
-                setShowOnboardingModal(true);
-              }}
-            >
-              Look Up Status
+              Partner with Us <ArrowRight size={18} />
             </button>
           </div>
-
-          {/* Stats Grid */}
-          <div className="landing-stats">
-            <div className="landing-stat-card">
-              <span className="landing-stat-value">50+</span>
-              <span className="landing-stat-label">Elite Salons</span>
-            </div>
-            <div className="landing-stat-card">
-              <span className="landing-stat-value">20k+</span>
-              <span className="landing-stat-label">Bookings Completed</span>
-            </div>
-            <div className="landing-stat-card">
-              <span className="landing-stat-value">0%</span>
-              <span className="landing-stat-label">Partner Commission</span>
-            </div>
-          </div>
-        </section>
-
-        {/* Features Section */}
-        <section className="landing-section" id="features">
-          <div className="landing-section-header">
-            <h2 className="landing-section-title">Designed for Next-Gen Grooming</h2>
-            <p className="landing-section-subtitle">
-              Whether you are looking for a quick haircut or want to grow your salon business, Barbo provides a commission-free, premium experience.
-            </p>
-          </div>
-          
-          <div className="landing-features-grid">
-            {/* For Customers */}
-            <div className="landing-feature-card">
-              <div className="landing-feature-icon">
-                <Compass size={24} />
-              </div>
-              <h3 className="landing-feature-title">For Customers</h3>
-              <div className="landing-feature-list">
-                <div className="landing-feature-item">
-                  <Check size={16} />
-                  <span><strong>Zero Booking Fees:</strong> Book premium slots instantly without any hidden convenience charges.</span>
-                </div>
-                <div className="landing-feature-item">
-                  <Check size={16} />
-                  <span><strong>Dynamic Pricing Menus:</strong> Browse exact styling rates, descriptions, and duration requirements before scheduling.</span>
-                </div>
-                <div className="landing-feature-item">
-                  <Check size={16} />
-                  <span><strong>Flexible Rescheduling:</strong> Reschedule or cancel bookings up to 30 minutes before your slot.</span>
-                </div>
-                <div className="landing-feature-item">
-                  <Check size={16} />
-                  <span><strong>Verified Quality:</strong> Access reviews and profiles of verified top-rated barbers across Bhopal.</span>
-                </div>
-              </div>
-            </div>
-
-            {/* For Barber Partners */}
-            <div className="landing-feature-card">
-              <div className="landing-feature-icon">
-                <TrendingUp size={24} />
-              </div>
-              <h3 className="landing-feature-title">For Barber Partners</h3>
-              <div className="landing-feature-list">
-                <div className="landing-feature-item">
-                  <Check size={16} />
-                  <span><strong>100% Commission-Free:</strong> Keep every rupee you earn. Zero platform commission fees on bookings.</span>
-                </div>
-                <div className="landing-feature-item">
-                  <Check size={16} />
-                  <span><strong>Powerful Partner Portal:</strong> Manage your opening hours, seating capacity, and custom service catalogs in real time.</span>
-                </div>
-                <div className="landing-feature-item">
-                  <Check size={16} />
-                  <span><strong>No-Show Protection:</strong> View customer booking histories and manage wait times efficiently.</span>
-                </div>
-                <div className="landing-feature-item">
-                  <Check size={16} />
-                  <span><strong>Admin Onboarding Review:</strong> Quick verification process to ensure listings remain premium and high-converting.</span>
-                </div>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        {/* How It Works Section */}
-        <section className="landing-section" id="how-it-works" style={{ paddingTop: 0 }}>
-          <div className="landing-section-header">
-            <h2 className="landing-section-title">How To List Your Shop</h2>
-            <p className="landing-section-subtitle">
-              Join Bhopal's fastest-growing premium salon network in three straightforward steps.
-            </p>
-          </div>
-          
-          <div className="landing-how-works">
-            <div className="landing-step-card">
-              <span className="landing-step-number">01</span>
-              <h4 className="landing-step-title">Submit Details</h4>
-              <p className="landing-step-desc">
-                Click "Partner with us" to submit your shop name, opening hours, capacity, location, and service pricings.
-              </p>
-            </div>
-            <div className="landing-step-card">
-              <span className="landing-step-number">02</span>
-              <h4 className="landing-step-title">Admin Review</h4>
-              <p className="landing-step-desc">
-                Our admin team verifies your submission details and service listings to activate your profile.
-              </p>
-            </div>
-            <div className="landing-step-card">
-              <span className="landing-step-number">03</span>
-              <h4 className="landing-step-title">Start Receiving Bookings</h4>
-              <p className="landing-step-desc">
-                Log in to your Barber Dashboard to manage calendar bookings, customers, and services instantly!
-              </p>
-            </div>
-          </div>
-        </section>
-
-        {/* CTA Section */}
-        <section className="landing-cta-section">
-          <h2 style={{ fontSize: '2rem', fontWeight: 800 }}>List Your Barber Shop Today</h2>
-          <p style={{ color: 'var(--text-secondary)', maxWidth: '540px', fontSize: '0.95rem', margin: '0 auto' }}>
-            Empower your shop with commission-free digital booking and reach thousands of customers in Bhopal looking for premium grooming.
-          </p>
-          <button 
-            className="gold-glow-btn"
-            style={{ padding: '14px 28px', marginTop: '10px' }}
-            onClick={() => {
-              setOnboardingTab('apply');
-              setOnboardingError('');
-              setOnboardingSuccess(false);
-              setShowOnboardingModal(true);
-            }}
-          >
-            Get Started Now
-          </button>
         </section>
 
         {/* Footer */}
@@ -1402,7 +1249,7 @@ export default function App() {
                 </span>
               </div>
 
-              {/* Quick Grading Autocompletes */}
+              {/* Quick Credentials Autofill */}
               <div style={{ marginTop: '24px', borderTop: '1px solid var(--border-light)', paddingTop: '16px' }}>
                 <span style={{ fontSize: '0.7rem', fontWeight: 600, color: 'var(--text-muted)', display: 'block', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '8px', textAlign: 'center' }}>
                   Quick Credentials Autofill
@@ -1444,6 +1291,454 @@ export default function App() {
                 </div>
               </div>
 
+            </div>
+          </div>
+        )}
+
+        {/* Onboarding Form Modal (Added here to work when currentUser is null!) */}
+        {showOnboardingModal && (
+          <div className="modal-backdrop animate-fade-in" onClick={() => setShowOnboardingModal(false)}>
+            <div 
+              className="glass-card gsap-modal" 
+              style={{ width: '100%', maxWidth: '720px', maxHeight: '90vh', overflowY: 'auto', zIndex: 1100, opacity: 0 }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Header */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+                <div>
+                  <h2 style={{ fontSize: '1.6rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <Building size={22} style={{ color: 'var(--accent-gold)' }} />
+                    Partner with Barbo
+                  </h2>
+                  <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
+                    Get your salon listed on Bhopal's premium grooming network
+                  </p>
+                </div>
+                <button 
+                  onClick={() => setShowOnboardingModal(false)} 
+                  style={{ background: 'transparent', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer' }}
+                >
+                  <X size={24} />
+                </button>
+              </div>
+
+              {/* Tabs */}
+              <div style={{ display: 'flex', borderBottom: '1px solid var(--border-light)', marginBottom: '24px' }}>
+                <button 
+                  onClick={() => setOnboardingTab('apply')}
+                  style={{ 
+                    flex: 1, 
+                    padding: '12px', 
+                    background: 'transparent', 
+                    border: 'none', 
+                    borderBottom: onboardingTab === 'apply' ? '2px solid var(--accent-gold)' : '2px solid transparent',
+                    color: onboardingTab === 'apply' ? 'var(--accent-gold)' : 'var(--text-secondary)',
+                    fontWeight: 600,
+                    cursor: 'pointer'
+                  }}
+                >
+                  Apply for Listing
+                </button>
+                <button 
+                  onClick={() => setOnboardingTab('status')}
+                  style={{ 
+                    flex: 1, 
+                    padding: '12px', 
+                    background: 'transparent', 
+                    border: 'none', 
+                    borderBottom: onboardingTab === 'status' ? '2px solid var(--accent-gold)' : '2px solid transparent',
+                    color: onboardingTab === 'status' ? 'var(--accent-gold)' : 'var(--text-secondary)',
+                    fontWeight: 600,
+                    cursor: 'pointer'
+                  }}
+                >
+                  Check Application Status
+                </button>
+              </div>
+
+              {/* Apply Tab */}
+              {onboardingTab === 'apply' && (
+                <div>
+                  {onboardingSuccess ? (
+                    <div style={{ padding: '30px 20px', textAlign: 'center' }}>
+                      <CheckCircle size={48} style={{ color: 'var(--accent-gold)', marginBottom: '16px', marginLeft: 'auto', marginRight: 'auto', display: 'block' }} />
+                      <h3 style={{ fontSize: '1.25rem', marginBottom: '8px' }}>Application Submitted!</h3>
+                      <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', marginBottom: '20px', lineHeight: '1.5' }}>
+                        Thank you for applying. Our admin team will review your application within 24 hours. You can check the status anytime using your email: <strong>{onboardingEmailInput || onboardingEmail}</strong>
+                      </p>
+                      <button className="gold-glow-btn" onClick={() => setShowOnboardingModal(false)}>
+                        Close Portal
+                      </button>
+                    </div>
+                  ) : (
+                    <form onSubmit={handleOnboardingSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                      {/* Step Info Box */}
+                      <div style={{ background: 'var(--accent-gold-glow)', border: '1px solid var(--border-subtle)', borderRadius: '12px', padding: '16px', marginBottom: '8px' }}>
+                        <h4 style={{ color: 'var(--accent-gold)', fontSize: '0.95rem', fontWeight: 700, marginBottom: '6px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <Sparkles size={16} /> How to list your shop in 3 steps:
+                        </h4>
+                        <ol style={{ margin: 0, paddingLeft: '20px', fontSize: '0.85rem', color: 'var(--text-secondary)', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                          <li><strong>Submit Form:</strong> Enter your basic shop info, seats, opening/closing hours, and services below.</li>
+                          <li><strong>Admin Review:</strong> Our team verifies details (coordinates, price lists) to activate your shop profile.</li>
+                          <li><strong>Go Live:</strong> Get approved, log in with your email, and start receiving live bookings commission-free!</li>
+                        </ol>
+                      </div>
+
+                      {onboardingError && (
+                        <div style={{ background: 'rgba(239, 68, 68, 0.08)', color: 'var(--status-red)', border: '1px solid rgba(239, 68, 68, 0.15)', padding: '12px', borderRadius: '8px', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <AlertCircle size={16} />
+                          <span>{onboardingError}</span>
+                        </div>
+                      )}
+
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                        <div>
+                          <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '8px' }}>
+                            Shop/Salon Name
+                          </label>
+                          <input 
+                            type="text" 
+                            placeholder="e.g. Royal Barber Shop"
+                            value={onboardingShopName}
+                            onChange={(e) => setOnboardingShopName(e.target.value)}
+                            style={{ width: '100%', padding: '12px', background: 'var(--bg-tertiary)', border: '1px solid var(--border-light)', borderRadius: '10px', color: 'var(--text-primary)', outline: 'none' }}
+                            required
+                          />
+                        </div>
+                        <div>
+                          <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '8px' }}>
+                            Owner / Main Barber Name
+                          </label>
+                          <input 
+                            type="text" 
+                            placeholder="e.g. Rajesh Kumar"
+                            value={onboardingOwnerName}
+                            onChange={(e) => setOnboardingOwnerName(e.target.value)}
+                            style={{ width: '100%', padding: '12px', background: 'var(--bg-tertiary)', border: '1px solid var(--border-light)', borderRadius: '10px', color: 'var(--text-primary)', outline: 'none' }}
+                            required
+                          />
+                        </div>
+                      </div>
+
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                        <div>
+                          <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '8px' }}>
+                            Contact Email (For logins)
+                          </label>
+                          <input 
+                            type="email" 
+                            placeholder="e.g. owner@shop.com"
+                            value={onboardingEmail}
+                            onChange={(e) => setOnboardingEmail(e.target.value)}
+                            style={{ width: '100%', padding: '12px', background: 'var(--bg-tertiary)', border: '1px solid var(--border-light)', borderRadius: '10px', color: 'var(--text-primary)', outline: 'none' }}
+                            required
+                          />
+                        </div>
+                        <div>
+                          <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '8px' }}>
+                            Contact Number
+                          </label>
+                          <input 
+                            type="tel" 
+                            placeholder="e.g. 9876543210"
+                            value={onboardingContactNumber}
+                            onChange={(e) => setOnboardingContactNumber(e.target.value)}
+                            style={{ width: '100%', padding: '12px', background: 'var(--bg-tertiary)', border: '1px solid var(--border-light)', borderRadius: '10px', color: 'var(--text-primary)', outline: 'none' }}
+                            required
+                          />
+                        </div>
+                      </div>
+
+                      <div>
+                        <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '8px' }}>
+                          Shop Location Address (Bhopal)
+                        </label>
+                        <input 
+                          type="text" 
+                          placeholder="e.g. Plot 42, MP Nagar Zone 2, Bhopal"
+                          value={onboardingLocation}
+                          onChange={(e) => setOnboardingLocation(e.target.value)}
+                          style={{ width: '100%', padding: '12px', background: 'var(--bg-tertiary)', border: '1px solid var(--border-light)', borderRadius: '10px', color: 'var(--text-primary)', outline: 'none' }}
+                          required
+                        />
+                      </div>
+
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px' }}>
+                        <div>
+                          <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '8px' }}>
+                            Latitude (Bhopal coords)
+                          </label>
+                          <input 
+                            type="text" 
+                            value={onboardingLat}
+                            onChange={(e) => setOnboardingLat(e.target.value)}
+                            style={{ width: '100%', padding: '12px', background: 'var(--bg-tertiary)', border: '1px solid var(--border-light)', borderRadius: '10px', color: 'var(--text-primary)', outline: 'none' }}
+                          />
+                        </div>
+                        <div>
+                          <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '8px' }}>
+                            Longitude (Bhopal coords)
+                          </label>
+                          <input 
+                            type="text" 
+                            value={onboardingLon}
+                            onChange={(e) => setOnboardingLon(e.target.value)}
+                            style={{ width: '100%', padding: '12px', background: 'var(--bg-tertiary)', border: '1px solid var(--border-light)', borderRadius: '10px', color: 'var(--text-primary)', outline: 'none' }}
+                          />
+                        </div>
+                        <div>
+                          <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '8px' }}>
+                            Stylist Chairs Count
+                          </label>
+                          <input 
+                            type="number" 
+                            min={1} 
+                            max={15}
+                            value={onboardingChairsCount}
+                            onChange={(e) => setOnboardingChairsCount(Number(e.target.value) || 2)}
+                            style={{ width: '100%', padding: '12px', background: 'var(--bg-tertiary)', border: '1px solid var(--border-light)', borderRadius: '10px', color: 'var(--text-primary)', outline: 'none' }}
+                          />
+                        </div>
+                      </div>
+
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                        <div>
+                          <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '8px' }}>
+                            Opening Hours (24hr format)
+                          </label>
+                          <input 
+                            type="time" 
+                            value={onboardingOpeningTime}
+                            onChange={(e) => setOnboardingOpeningTime(e.target.value)}
+                            style={{ width: '100%', padding: '12px', background: 'var(--bg-tertiary)', border: '1px solid var(--border-light)', borderRadius: '10px', color: 'var(--text-primary)', outline: 'none' }}
+                          />
+                        </div>
+                        <div>
+                          <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '8px' }}>
+                            Closing Hours (24hr format)
+                          </label>
+                          <input 
+                            type="time" 
+                            value={onboardingClosingTime}
+                            onChange={(e) => setOnboardingClosingTime(e.target.value)}
+                            style={{ width: '100%', padding: '12px', background: 'var(--bg-tertiary)', border: '1px solid var(--border-light)', borderRadius: '10px', color: 'var(--text-primary)', outline: 'none' }}
+                          />
+                        </div>
+                      </div>
+
+                      {/* Services Manager */}
+                      <div style={{ borderTop: '1px solid var(--border-light)', paddingTop: '20px' }}>
+                        <h4 style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '4px' }}>
+                          Services Offered & Price Menus
+                        </h4>
+                        <p style={{ color: 'var(--text-secondary)', fontSize: '0.8rem', marginBottom: '16px' }}>
+                          Add services that clients can book at your shop.
+                        </p>
+
+                        <div style={{ display: 'flex', gap: '10px', marginBottom: '16px', flexWrap: 'wrap' }}>
+                          <input 
+                            type="text" 
+                            placeholder="Service Name (e.g. Haircut)"
+                            value={newServiceName}
+                            onChange={(e) => setNewServiceName(e.target.value)}
+                            style={{ flex: 2, minWidth: '160px', padding: '10px', background: 'var(--bg-tertiary)', border: '1px solid var(--border-light)', borderRadius: '8px', color: 'var(--text-primary)', outline: 'none', fontSize: '0.88rem' }}
+                          />
+                          <input 
+                            type="number" 
+                            placeholder="Price (₹)"
+                            value={newServicePrice}
+                            onChange={(e) => setNewServicePrice(e.target.value)}
+                            style={{ flex: 1, minWidth: '80px', padding: '10px', background: 'var(--bg-tertiary)', border: '1px solid var(--border-light)', borderRadius: '8px', color: 'var(--text-primary)', outline: 'none', fontSize: '0.88rem' }}
+                          />
+                          <input 
+                            type="number" 
+                            placeholder="Mins"
+                            value={newServiceDuration}
+                            onChange={(e) => setNewServiceDuration(e.target.value)}
+                            style={{ flex: 1, minWidth: '80px', padding: '10px', background: 'var(--bg-tertiary)', border: '1px solid var(--border-light)', borderRadius: '8px', color: 'var(--text-primary)', outline: 'none', fontSize: '0.88rem' }}
+                          />
+                          <button 
+                            type="button" 
+                            className="btn-secondary" 
+                            style={{ padding: '10px 16px', fontSize: '0.88rem' }}
+                            onClick={handleAddOnboardingService}
+                          >
+                            <Plus size={16} /> Add
+                          </button>
+                        </div>
+
+                        {/* Services list */}
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                          {onboardingServices.map((srv, idx) => (
+                            <div 
+                              key={idx} 
+                              style={{ 
+                                display: 'flex', 
+                                justifyContent: 'space-between', 
+                                alignItems: 'center', 
+                                background: 'rgba(255, 255, 255, 0.02)', 
+                                border: '1px solid var(--border-light)', 
+                                borderRadius: '8px', 
+                                padding: '10px 16px' 
+                              }}
+                            >
+                              <div>
+                                <strong style={{ fontSize: '0.9rem', color: 'var(--text-primary)' }}>{srv.name}</strong>
+                                <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginLeft: '12px' }}>
+                                  {srv.durationMinutes} minutes
+                                </span>
+                              </div>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                                <span style={{ fontWeight: 600, color: 'var(--accent-gold)', fontSize: '0.9rem' }}>
+                                  ₹{srv.price}
+                                </span>
+                                <button 
+                                  type="button" 
+                                  style={{ background: 'transparent', border: 'none', color: 'var(--status-red)', cursor: 'pointer' }}
+                                  onClick={() => handleRemoveOnboardingService(idx)}
+                                >
+                                  <Trash size={16} />
+                                </button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      <button 
+                        type="submit" 
+                        className="gold-glow-btn"
+                        style={{ padding: '14px', justifyContent: 'center', width: '100%', marginTop: '10px' }}
+                        disabled={submittingOnboarding}
+                      >
+                        {submittingOnboarding ? 'Submitting Application...' : 'Submit Partnership Application'}
+                      </button>
+                    </form>
+                  )}
+                </div>
+              )}
+
+              {/* Check Status Tab */}
+              {onboardingTab === 'status' && (
+                <div>
+                  <form onSubmit={handleCheckStatus} style={{ display: 'flex', gap: '10px', marginBottom: '24px' }}>
+                    <input 
+                      type="email" 
+                      placeholder="Enter your application email address"
+                      value={onboardingEmailInput}
+                      onChange={(e) => setOnboardingEmailInput(e.target.value)}
+                      style={{ flex: 1, padding: '12px', background: 'var(--bg-tertiary)', border: '1px solid var(--border-light)', borderRadius: '10px', color: 'var(--text-primary)', outline: 'none' }}
+                      required
+                    />
+                    <button 
+                      type="submit" 
+                      className="gold-glow-btn" 
+                      style={{ padding: '12px 20px' }}
+                      disabled={checkingStatus}
+                    >
+                      {checkingStatus ? 'Checking...' : 'Check Status'}
+                    </button>
+                  </form>
+
+                  {statusMessage && (
+                    <div style={{ background: 'rgba(255, 255, 255, 0.02)', border: '1px solid var(--border-light)', padding: '16px', borderRadius: '10px', textAlign: 'center', color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
+                      {statusMessage}
+                    </div>
+                  )}
+
+                  {checkedApplication && (
+                    <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '16px', background: 'var(--bg-tertiary)', border: '1px solid var(--border-light)', borderRadius: '12px', padding: '20px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <h4 style={{ fontSize: '1.1rem', fontWeight: 700 }}>{checkedApplication.shopName}</h4>
+                        
+                        {checkedApplication.status === 'approved' && (
+                          <span style={{ background: 'rgba(56, 189, 248, 0.1)', color: 'var(--status-green)', border: '1px solid rgba(56, 189, 248, 0.2)', padding: '4px 10px', borderRadius: '20px', fontSize: '0.75rem', fontWeight: 600, textTransform: 'uppercase' }}>
+                            Approved
+                          </span>
+                        )}
+                        {checkedApplication.status === 'pending' && (
+                          <span style={{ background: 'rgba(251, 191, 36, 0.1)', color: 'var(--status-amber)', border: '1px solid rgba(251, 191, 36, 0.2)', padding: '4px 10px', borderRadius: '20px', fontSize: '0.75rem', fontWeight: 600, textTransform: 'uppercase' }}>
+                            Pending Review
+                          </span>
+                        )}
+                        {checkedApplication.status === 'rejected' && (
+                          <span style={{ background: 'rgba(239, 68, 68, 0.1)', color: 'var(--status-red)', border: '1px solid rgba(239, 68, 68, 0.2)', padding: '4px 10px', borderRadius: '20px', fontSize: '0.75rem', fontWeight: 600, textTransform: 'uppercase' }}>
+                            Revisions Required
+                          </span>
+                        )}
+                      </div>
+
+                      <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                        <div><strong>Owner:</strong> {checkedApplication.ownerName}</div>
+                        <div><strong>Phone:</strong> {checkedApplication.contactNumber}</div>
+                        <div><strong>Hours:</strong> {checkedApplication.openingTime} - {checkedApplication.closingTime}</div>
+                        <div><strong>Chairs:</strong> {checkedApplication.chairsCount} Stylist Seats</div>
+                      </div>
+
+                      {checkedApplication.status === 'rejected' && (
+                        <div 
+                          style={{ 
+                            background: 'rgba(239, 68, 68, 0.05)', 
+                            border: '1px solid rgba(239, 68, 68, 0.15)', 
+                            borderRadius: '8px', 
+                            padding: '12px', 
+                            marginTop: '8px',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: '6px'
+                          }}
+                        >
+                          <strong style={{ color: 'var(--status-red)', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <AlertTriangle size={14} /> ADMIN FEEDBACK COMMENTS:
+                          </strong>
+                          <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-primary)', lineHeight: '1.4' }}>
+                            {checkedApplication.rejectionFeedback || 'Please review your shop details and resubmit.'}
+                          </p>
+                          
+                          <button 
+                            className="btn-danger" 
+                            style={{ marginTop: '10px', padding: '10px', justifyContent: 'center', width: '100%', fontSize: '0.85rem' }}
+                            onClick={() => handleEditAndResubmit(checkedApplication)}
+                          >
+                            <Edit size={14} style={{ marginRight: '6px' }} /> Edit Details & Resubmit
+                          </button>
+                        </div>
+                      )}
+
+                      {checkedApplication.status === 'approved' && (
+                        <div 
+                          style={{ 
+                            background: 'rgba(56, 189, 248, 0.05)', 
+                            border: '1px solid rgba(56, 189, 248, 0.15)', 
+                            borderRadius: '8px', 
+                            padding: '16px', 
+                            marginTop: '8px',
+                            textAlign: 'center'
+                          }}
+                        >
+                          <p style={{ margin: '0 0 12px 0', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                            Congratulations! Your shop has been approved. You can log in as a Barber with:
+                            <br />Email: <strong>{checkedApplication.email}</strong> / Password: <strong>123456</strong>
+                          </p>
+                          <button 
+                            className="gold-glow-btn"
+                            style={{ padding: '8px 16px', fontSize: '0.85rem' }}
+                            onClick={() => {
+                              setShowOnboardingModal(false);
+                              setEmail(checkedApplication.email);
+                              setPassword('123456');
+                              setIsSignup(false);
+                              setShowLoginModal(true);
+                            }}
+                          >
+                            Proceed to Log In
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         )}
