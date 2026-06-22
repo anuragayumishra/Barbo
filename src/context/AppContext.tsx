@@ -1476,22 +1476,24 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       });
       const data = await res.json();
       if (res.ok && data.success) {
-        setServices(prev => prev.map(s => s.id === serviceId && s.barberId === barberId ? {
+        setServices(prev => prev.map(s => s.id === serviceId && (s.barberId === barberId || !s.barberId) ? {
           ...s,
           name: serviceData.name.trim(),
           price: Number(serviceData.price),
-          durationMinutes: Number(serviceData.durationMinutes)
+          durationMinutes: Number(serviceData.durationMinutes),
+          barberId: barberId
         } : s));
         return { success: true, message: data.message || 'Service updated successfully!' };
       }
       return { success: false, message: data.message || 'Failed to update service.' };
     } catch (err) {
       console.warn("Express server offline, running fallback local service update.");
-      setServices(prev => prev.map(s => s.id === serviceId && s.barberId === barberId ? {
+      setServices(prev => prev.map(s => s.id === serviceId && (s.barberId === barberId || !s.barberId) ? {
         ...s,
         name: serviceData.name.trim(),
         price: Number(serviceData.price),
-        durationMinutes: Number(serviceData.durationMinutes)
+        durationMinutes: Number(serviceData.durationMinutes),
+        barberId: barberId
       } : s));
       return { success: true, message: 'Service updated successfully! (Offline Fallback)' };
     }
@@ -1504,13 +1506,13 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       });
       const data = await res.json();
       if (res.ok && data.success) {
-        setServices(prev => prev.filter(s => !(s.id === serviceId && s.barberId === barberId)));
+        setServices(prev => prev.filter(s => !(s.id === serviceId && (s.barberId === barberId || !s.barberId))));
         return { success: true, message: data.message || 'Service deleted successfully!' };
       }
       return { success: false, message: data.message || 'Failed to delete service.' };
     } catch (err) {
       console.warn("Express server offline, running fallback local service deletion.");
-      setServices(prev => prev.filter(s => !(s.id === serviceId && s.barberId === barberId)));
+      setServices(prev => prev.filter(s => !(s.id === serviceId && (s.barberId === barberId || !s.barberId))));
       return { success: true, message: 'Service deleted successfully! (Offline Fallback)' };
     }
   };

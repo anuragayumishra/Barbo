@@ -2909,12 +2909,12 @@ export default function App() {
 
             {/* Current Services List */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-              {services.filter(s => s.barberId === activeBarber.id).length === 0 ? (
+              {services.filter(s => s.barberId === activeBarber.id || !s.barberId).length === 0 ? (
                 <div style={{ textAlign: 'center', padding: '30px', color: 'var(--text-muted)', fontSize: '0.9rem' }}>
                   No services found. Add your first service above!
                 </div>
               ) : (
-                services.filter(s => s.barberId === activeBarber.id).map((srv) => (
+                services.filter(s => s.barberId === activeBarber.id || !s.barberId).map((srv) => (
                   <div 
                     key={srv.id}
                     style={{ 
