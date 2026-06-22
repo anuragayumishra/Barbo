@@ -26,8 +26,7 @@ import {
   Edit,
   Building,
   Settings,
-  XCircle,
-  ArrowRight
+  XCircle
 } from 'lucide-react';
 import { gsap } from 'gsap';
 
@@ -1067,12 +1066,18 @@ export default function App() {
   if (!currentUser) {
     return (
       <div className="landing-container animate-fade-in">
+        {/*      <div className="landing-container animate-fade-in">
         {/* Navigation Bar */}
         <header className="landing-nav">
           <div className="landing-nav-logo">
             <Scissors size={20} />
             BAR<span>BO</span>
           </div>
+          <nav className="landing-nav-links">
+            <a href="#discover" className="landing-nav-link">Discover Salons</a>
+            <a href="#why-choose-us" className="landing-nav-link">Why Choose Us?</a>
+            <a href="#how-it-works" className="landing-nav-link">How It Works</a>
+          </nav>
           <div className="landing-nav-actions">
             <button 
               className="btn-secondary" 
@@ -1099,20 +1104,27 @@ export default function App() {
           </div>
         </header>
 
-        {/* Crisp Hero Section */}
-        <section className="landing-hero" style={{ flex: 1, display: 'flex', justifyContent: 'center', minHeight: 'calc(100vh - 160px)' }}>
+        {/* Hero Section */}
+        <section className="landing-hero" style={{ minHeight: '80vh', display: 'flex', justifyContent: 'center' }}>
           <div className="landing-badge">
-            <Sparkles size={14} /> Bhopal's Premium Grooming Network
+            <Sparkles size={14} /> Bhopal's Premier Grooming Network
           </div>
-          <h1 className="landing-title" style={{ fontSize: '4.2rem', marginBottom: '8px' }}>
-            Grooming, <span>Elevated</span>.
+          <h1 className="landing-title">
+            Grooming, <span>Simplified</span>.<br />Booking, <span>Elevated</span>.
           </h1>
-          <p className="landing-subtitle" style={{ fontSize: '1.25rem', marginBottom: '16px' }}>
-            Find the finest barbers in Bhopal or partner with us to list your salon today.
+          <p className="landing-subtitle">
+            Find the finest barber shops in Bhopal, browse verified dynamic menus, and book your styling appointment in under 30 seconds.
           </p>
           <div className="landing-hero-actions">
-            <button 
+            <a 
+              href="#discover" 
               className="gold-glow-btn"
+              style={{ padding: '16px 32px', fontSize: '1.05rem', textDecoration: 'none' }}
+            >
+              Book a Salon <ChevronRight size={18} />
+            </a>
+            <button 
+              className="btn-secondary"
               style={{ padding: '16px 32px', fontSize: '1.05rem' }}
               onClick={() => {
                 setOnboardingTab('apply');
@@ -1121,14 +1133,268 @@ export default function App() {
                 setShowOnboardingModal(true);
               }}
             >
-              Partner with Us <ArrowRight size={18} />
+              List Your Shop
             </button>
           </div>
         </section>
 
+        {/* Featured Salons Section */}
+        <section className="landing-section" id="discover" style={{ borderTop: '1px solid var(--border-light)' }}>
+          <div className="landing-section-header">
+            <div className="landing-badge" style={{ marginBottom: '8px' }}>
+              <Building size={12} /> Elite Partners
+            </div>
+            <h2 className="landing-section-title">Discover Premium Salons</h2>
+            <p className="landing-section-subtitle">
+              Browse top-rated barbers, check styling schedules, and book slots instantly with zero prepayment.
+            </p>
+          </div>
+
+          <div className="salons-grid">
+            {/* Salon 1 */}
+            <div className="salon-card">
+              <div 
+                className="salon-card-image" 
+                style={{ 
+                  backgroundImage: `linear-gradient(to bottom, transparent, rgba(10,11,14,0.9)), url('https://images.unsplash.com/photo-1503951914875-452162b0f3f1?auto=format&fit=crop&w=600&q=80')` 
+                }}
+              >
+                <div className="salon-card-badge">
+                  <Star size={14} fill="var(--accent-gold)" /> 4.9
+                </div>
+              </div>
+              <div className="salon-card-content">
+                <h3 className="salon-card-title">Royal Barber Shop</h3>
+                <div className="salon-card-meta">
+                  <div className="salon-card-meta-item">
+                    <MapPin size={14} />
+                    <span>MP Nagar Zone II, Bhopal</span>
+                  </div>
+                  <div className="salon-card-meta-item">
+                    <Clock size={14} />
+                    <span>09:00 AM - 09:00 PM</span>
+                  </div>
+                </div>
+                <div className="salon-card-footer">
+                  <div className="salon-card-price">
+                    Haircut Starts At
+                    <span>₹150</span>
+                  </div>
+                  <button 
+                    className="gold-glow-btn salon-card-btn"
+                    onClick={() => {
+                      setLoginError('');
+                      setShowLoginModal(true);
+                    }}
+                  >
+                    Book Now
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Salon 2 */}
+            <div className="salon-card">
+              <div 
+                className="salon-card-image" 
+                style={{ 
+                  backgroundImage: `linear-gradient(to bottom, transparent, rgba(10,11,14,0.9)), url('https://images.unsplash.com/photo-1621605815971-fbc98d665033?auto=format&fit=crop&w=600&q=80')` 
+                }}
+              >
+                <div className="salon-card-badge">
+                  <Star size={14} fill="var(--accent-gold)" /> 4.8
+                </div>
+              </div>
+              <div className="salon-card-content">
+                <h3 className="salon-card-title">Ironside Shave Parlor</h3>
+                <div className="salon-card-meta">
+                  <div className="salon-card-meta-item">
+                    <MapPin size={14} />
+                    <span>Arera Colony, Bhopal</span>
+                  </div>
+                  <div className="salon-card-meta-item">
+                    <Clock size={14} />
+                    <span>10:00 AM - 08:00 PM</span>
+                  </div>
+                </div>
+                <div className="salon-card-footer">
+                  <div className="salon-card-price">
+                    Haircut Starts At
+                    <span>₹120</span>
+                  </div>
+                  <button 
+                    className="gold-glow-btn salon-card-btn"
+                    onClick={() => {
+                      setLoginError('');
+                      setShowLoginModal(true);
+                    }}
+                  >
+                    Book Now
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Salon 3 */}
+            <div className="salon-card">
+              <div 
+                className="salon-card-image" 
+                style={{ 
+                  backgroundImage: `linear-gradient(to bottom, transparent, rgba(10,11,14,0.9)), url('https://images.unsplash.com/photo-1585747860715-2ba37e788b70?auto=format&fit=crop&w=600&q=80')` 
+                }}
+              >
+                <div className="salon-card-badge">
+                  <Star size={14} fill="var(--accent-gold)" /> 4.7
+                </div>
+              </div>
+              <div className="salon-card-content">
+                <h3 className="salon-card-title">Vintage Scissors</h3>
+                <div className="salon-card-meta">
+                  <div className="salon-card-meta-item">
+                    <MapPin size={14} />
+                    <span>Indrapuri, Bhopal</span>
+                  </div>
+                  <div className="salon-card-meta-item">
+                    <Clock size={14} />
+                    <span>09:00 AM - 09:00 PM</span>
+                  </div>
+                </div>
+                <div className="salon-card-footer">
+                  <div className="salon-card-price">
+                    Haircut Starts At
+                    <span>₹100</span>
+                  </div>
+                  <button 
+                    className="gold-glow-btn salon-card-btn"
+                    onClick={() => {
+                      setLoginError('');
+                      setShowLoginModal(true);
+                    }}
+                  >
+                    Book Now
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* Why Choose Us Section */}
+        <section className="landing-section" id="why-choose-us" style={{ borderTop: '1px solid var(--border-light)' }}>
+          <div className="landing-section-header">
+            <h2 className="landing-section-title">Why Choose Barbo?</h2>
+            <p className="landing-section-subtitle">
+              We connect style-conscious clients with verified grooming professionals under a unified, premium network.
+            </p>
+          </div>
+
+          <div className="landing-features-grid">
+            {/* For Customers */}
+            <div className="landing-feature-card">
+              <div className="landing-feature-icon">
+                <Scissors size={22} />
+              </div>
+              <h3 className="landing-feature-title">For Customers</h3>
+              <div className="landing-feature-list" style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                <div className="landing-feature-item" style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
+                  <Sparkles size={16} style={{ color: 'var(--accent-gold)', marginTop: '2px' }} />
+                  <span><strong>Instant Slot Booking:</strong> Pick your service, choose an available time slot, and get instant confirmation.</span>
+                </div>
+                <div className="landing-feature-item" style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
+                  <Sparkles size={16} style={{ color: 'var(--accent-gold)', marginTop: '2px' }} />
+                  <span><strong>Zero Upfront Payments:</strong> Book online entirely free, and pay directly at the shop after your haircut.</span>
+                </div>
+                <div className="landing-feature-item" style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
+                  <Sparkles size={16} style={{ color: 'var(--accent-gold)', marginTop: '2px' }} />
+                  <span><strong>Transparent Pricing:</strong> Review catalog service prices, descriptions, and duration limits beforehand.</span>
+                </div>
+              </div>
+            </div>
+
+            {/* For Barbers */}
+            <div className="landing-feature-card">
+              <div className="landing-feature-icon">
+                <Building size={22} />
+              </div>
+              <h3 className="landing-feature-title">For Barbers (Partners)</h3>
+              <div className="landing-feature-list" style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                <div className="landing-feature-item" style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
+                  <Sparkles size={16} style={{ color: 'var(--accent-gold)', marginTop: '2px' }} />
+                  <span><strong>0% Platform Commission:</strong> Keep 100% of your earnings. No listing commission fees.</span>
+                </div>
+                <div className="landing-feature-item" style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
+                  <Sparkles size={16} style={{ color: 'var(--accent-gold)', marginTop: '2px' }} />
+                  <span><strong>Custom Partner Console:</strong> Update timing, seats capacity, and service pricings in real-time.</span>
+                </div>
+                <div className="landing-feature-item" style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
+                  <Sparkles size={16} style={{ color: 'var(--accent-gold)', marginTop: '2px' }} />
+                  <span><strong>Attract More Customers:</strong> Gain organic visibility among style-seekers in your local Bhopal area.</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* How It Works Section */}
+        <section className="landing-section" id="how-it-works" style={{ borderTop: '1px solid var(--border-light)', paddingBottom: '40px' }}>
+          <div className="landing-section-header">
+            <h2 className="landing-section-title">How It Works</h2>
+            <p className="landing-section-subtitle">
+              Unified scheduling flows designed for maximum speed and absolute convenience.
+            </p>
+          </div>
+
+          <div className="landing-how-works">
+            <div className="landing-step-card">
+              <span className="landing-step-number">01</span>
+              <h4 className="landing-step-title">Discover</h4>
+              <p className="landing-step-desc">
+                Browse premium salons in Bhopal or search for your favorite stylist's availability.
+              </p>
+            </div>
+            <div className="landing-step-card">
+              <span className="landing-step-number">02</span>
+              <h4 className="landing-step-title">Reserve Slot</h4>
+              <p className="landing-step-desc">
+                Choose your haircut services, pick your styling date/time slot, and confirm instantly.
+              </p>
+            </div>
+            <div className="landing-step-card">
+              <span className="landing-step-number">03</span>
+              <h4 className="landing-step-title">Pay at Shop</h4>
+              <p className="landing-step-desc">
+                Visit the salon at your scheduled time, enjoy premium grooming, and pay at the shop!
+              </p>
+            </div>
+          </div>
+        </section>
+
+        {/* Partner Onboarding CTA */}
+        <section className="landing-cta-section" style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-light)' }}>
+          <div className="landing-badge">
+            <Building size={14} style={{ marginRight: '6px' }} /> Partner Portal
+          </div>
+          <h2 style={{ fontSize: '2rem', fontWeight: 800 }}>Grow Your Salon Business</h2>
+          <p style={{ color: 'var(--text-secondary)', maxWidth: '540px', fontSize: '0.95rem', margin: '0 auto' }}>
+            List your shop, manage appointments digitally, and connect directly with local Bhopal customers. 100% Commission Free.
+          </p>
+          <button 
+            className="gold-glow-btn"
+            style={{ padding: '14px 28px', marginTop: '10px' }}
+            onClick={() => {
+              setOnboardingTab('apply');
+              setOnboardingError('');
+              setOnboardingSuccess(false);
+              setShowOnboardingModal(true);
+            }}
+          >
+            Partner with Us / List Your Shop
+          </button>
+        </section>
+
         {/* Footer */}
         <footer className="landing-footer">
-          <p>© 2026 Barbo Bhopal. Premium Barber Booking & Onboarding Platform.</p>
+          <p>© 2026 Barbo Bhopal. Premium Salon Discovery, Booking & Onboarding Platform.</p>
         </footer>
 
         {/* Login Modal Overlay */}
@@ -1299,8 +1565,8 @@ export default function App() {
         {showOnboardingModal && (
           <div className="modal-backdrop animate-fade-in" onClick={() => setShowOnboardingModal(false)}>
             <div 
-              className="glass-card gsap-modal" 
-              style={{ width: '100%', maxWidth: '720px', maxHeight: '90vh', overflowY: 'auto', zIndex: 1100, opacity: 0 }}
+              className="glass-card animate-scale-in" 
+              style={{ width: '100%', maxWidth: '720px', maxHeight: '90vh', overflowY: 'auto', zIndex: 1100 }}
               onClick={(e) => e.stopPropagation()}
             >
               {/* Header */}
@@ -3705,8 +3971,8 @@ export default function App() {
       {showOnboardingModal && (
         <div className="modal-backdrop animate-fade-in" onClick={() => setShowOnboardingModal(false)}>
           <div 
-            className="glass-card gsap-modal" 
-            style={{ width: '100%', maxWidth: '720px', maxHeight: '90vh', overflowY: 'auto', zIndex: 1100, opacity: 0 }}
+            className="glass-card animate-scale-in" 
+            style={{ width: '100%', maxWidth: '720px', maxHeight: '90vh', overflowY: 'auto', zIndex: 1100 }}
             onClick={(e) => e.stopPropagation()}
           >
             {/* Header */}
@@ -4141,7 +4407,7 @@ export default function App() {
       {showRejectFeedbackModal && (
         <div className="modal-backdrop animate-fade-in" onClick={() => setShowRejectFeedbackModal(false)}>
           <div 
-            className="glass-card gsap-modal" 
+            className="glass-card animate-scale-in" 
             style={{ width: '100%', maxWidth: '460px', zIndex: 1200 }}
             onClick={(e) => e.stopPropagation()}
           >
