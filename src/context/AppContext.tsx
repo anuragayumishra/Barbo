@@ -106,6 +106,11 @@ interface AppContextType {
   adminEditApplication: (id: number, appData: any, services: any[]) => Promise<{ success: boolean; message: string }>;
   adminApproveApplication: (id: number) => Promise<{ success: boolean; message: string }>;
   adminRejectApplication: (id: number, feedback: string) => Promise<{ success: boolean; message: string }>;
+  
+  // Barber Service Management
+  addBarberService: (barberId: string, serviceData: { name: string; price: number; durationMinutes: number }) => Promise<{ success: boolean; message: string }>;
+  updateBarberService: (barberId: string, serviceId: string, serviceData: { name: string; price: number; durationMinutes: number }) => Promise<{ success: boolean; message: string }>;
+  deleteBarberService: (barberId: string, serviceId: string) => Promise<{ success: boolean; message: string }>;
 }
 
 // ==========================================
@@ -450,8 +455,33 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     return null;
   });
 
-  const [barbers, setBarbers] = useState<Barber[]>(INITIAL_BARBERS);
-  const [services, setServices] = useState<Service[]>(INITIAL_SERVICES);
+  const [barbers, setBarbers] = useState<Barber[]>(() => {
+    const saved = localStorage.getItem('barbo_barbers');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {}
+    }
+    return INITIAL_BARBERS;
+  });
+
+  const [services, setServices] = useState<Service[]>(() => {
+    const saved = localStorage.getItem('barbo_services');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {}
+    }
+    return INITIAL_SERVICES;
+  });
+
+  useEffect(() => {
+    localStorage.setItem('barbo_barbers', JSON.stringify(barbers));
+  }, [barbers]);
+
+  useEffect(() => {
+    localStorage.setItem('barbo_services', JSON.stringify(services));
+  }, [services]);
   const [appointments, setAppointments] = useState<Appointment[]>(() => {
     const saved = localStorage.getItem('barbo_appointments');
     if (saved) {
@@ -1408,6 +1438,83 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     }
   };
 
+  const addBarberService = async (barberId: string, serviceData: { name: string; price: number; durationMinutes: number }) => {
+    try {
+      const res = await fetch(`${BASE_URL}/barbers/${barberId}/services`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(serviceData)
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setServices(prev => [...prev, data.service]);
+        return { success: true, message: data.message || 'Service added successfully!' };
+      }
+      return { success: false, message: data.message || 'Failed to add service.' };
+    } catch (err) {
+      console.warn("Express server offline, running fallback local service addition.");
+      const serviceId = `s-${barberId}-${Date.now()}`;
+      const newService: Service = {
+        id: serviceId,
+        name: serviceData.name.trim(),
+        description: `Premium ${serviceData.name.trim()} service custom tailored for you.`,
+        price: Number(serviceData.price),
+        durationMinutes: Number(serviceData.durationMinutes),
+        barberId
+      };
+      setServices(prev => [...prev, newService]);
+      return { success: true, message: 'Service added successfully! (Offline Fallback)' };
+    }
+  };
+
+  const updateBarberService = async (barberId: string, serviceId: string, serviceData: { name: string; price: number; durationMinutes: number }) => {
+    try {
+      const res = await fetch(`${BASE_URL}/barbers/${barberId}/services/${serviceId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(serviceData)
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setServices(prev => prev.map(s => s.id === serviceId && s.barberId === barberId ? {
+          ...s,
+          name: serviceData.name.trim(),
+          price: Number(serviceData.price),
+          durationMinutes: Number(serviceData.durationMinutes)
+        } : s));
+        return { success: true, message: data.message || 'Service updated successfully!' };
+      }
+      return { success: false, message: data.message || 'Failed to update service.' };
+    } catch (err) {
+      console.warn("Express server offline, running fallback local service update.");
+      setServices(prev => prev.map(s => s.id === serviceId && s.barberId === barberId ? {
+        ...s,
+        name: serviceData.name.trim(),
+        price: Number(serviceData.price),
+        durationMinutes: Number(serviceData.durationMinutes)
+      } : s));
+      return { success: true, message: 'Service updated successfully! (Offline Fallback)' };
+    }
+  };
+
+  const deleteBarberService = async (barberId: string, serviceId: string) => {
+    try {
+      const res = await fetch(`${BASE_URL}/barbers/${barberId}/services/${serviceId}`, {
+        method: 'DELETE'
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setServices(prev => prev.filter(s => !(s.id === serviceId && s.barberId === barberId)));
+        return { success: true, message: data.message || 'Service deleted successfully!' };
+      }
+      return { success: false, message: data.message || 'Failed to delete service.' };
+    } catch (err) {
+      console.warn("Express server offline, running fallback local service deletion.");
+      setServices(prev => prev.filter(s => !(s.id === serviceId && s.barberId === barberId)));
+      return { success: true, message: 'Service deleted successfully! (Offline Fallback)' };
+    }
+  };
+
   return (
     <AppContext.Provider
       value={{
@@ -1443,7 +1550,12 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         adminFetchApplications,
         adminEditApplication,
         adminApproveApplication,
-        adminRejectApplication
+        adminRejectApplication,
+        
+        // Barber Service Management
+        addBarberService,
+        updateBarberService,
+        deleteBarberService
       }}
     >
       {children}

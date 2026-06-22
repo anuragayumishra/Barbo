@@ -213,7 +213,10 @@ export default function App() {
     adminFetchApplications,
     adminEditApplication,
     adminApproveApplication,
-    adminRejectApplication
+    adminRejectApplication,
+    addBarberService,
+    updateBarberService,
+    deleteBarberService
   } = useApp();
 
   const getLocalDateString = (d: Date = new Date()) => {
@@ -370,21 +373,26 @@ export default function App() {
   const [onboardingEmail, setOnboardingEmail] = useState('');
   const [onboardingContactNumber, setOnboardingContactNumber] = useState('');
   const [onboardingLocation, setOnboardingLocation] = useState('');
-  const [onboardingLat, setOnboardingLat] = useState('23.2500');
-  const [onboardingLon, setOnboardingLon] = useState('77.4100');
+  const [onboardingMapsUrl, setOnboardingMapsUrl] = useState('');
   const [onboardingChairsCount, setOnboardingChairsCount] = useState(2);
   const [onboardingOpeningTime, setOnboardingOpeningTime] = useState('09:00');
   const [onboardingClosingTime, setOnboardingClosingTime] = useState('21:00');
-  const [onboardingServices, setOnboardingServices] = useState<{ name: string; price: number; durationMinutes: number }[]>([
-    { name: 'Classic Haircut', price: 150, durationMinutes: 20 },
-    { name: 'Beard Trim & Shave', price: 100, durationMinutes: 15 }
-  ]);
+  const [onboardingServices, setOnboardingServices] = useState<{ name: string; price: number; durationMinutes: number }[]>([]);
   const [newServiceName, setNewServiceName] = useState('');
-  const [newServicePrice, setNewServicePrice] = useState('100');
-  const [newServiceDuration, setNewServiceDuration] = useState('20');
+  const [newServicePrice, setNewServicePrice] = useState('');
+  const [newServiceDuration, setNewServiceDuration] = useState('');
   const [submittingOnboarding, setSubmittingOnboarding] = useState(false);
   const [onboardingSuccess, setOnboardingSuccess] = useState(false);
   const [onboardingError, setOnboardingError] = useState('');
+
+  // Barber Portal Service Management States
+  const [portalNewServiceName, setPortalNewServiceName] = useState('');
+  const [portalNewServicePrice, setPortalNewServicePrice] = useState('');
+  const [portalNewServiceDuration, setPortalNewServiceDuration] = useState('');
+  const [editingServiceId, setEditingServiceId] = useState<string | null>(null);
+  const [editServiceName, setEditServiceName] = useState('');
+  const [editServicePrice, setEditServicePrice] = useState('');
+  const [editServiceDuration, setEditServiceDuration] = useState('');
 
   // Admin Dashboard States
   const [adminApplications, setAdminApplications] = useState<any[]>([]);
@@ -634,6 +642,10 @@ export default function App() {
       setOnboardingError('Please fill in all basic shop information.');
       return;
     }
+    if (!onboardingMapsUrl.trim()) {
+      setOnboardingError('Please provide a Google Maps URL for your shop.');
+      return;
+    }
     if (onboardingServices.length === 0) {
       setOnboardingError('Please add at least one service offered by your shop.');
       return;
@@ -643,14 +655,26 @@ export default function App() {
     setOnboardingError('');
     setOnboardingSuccess(false);
 
+    // Parse coordinates from Maps URL
+    let parsedLat = 23.2500;
+    let parsedLon = 77.4100;
+    const coordMatch = onboardingMapsUrl.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/) ||
+                       onboardingMapsUrl.match(/query=(-?\d+\.\d+),(-?\d+\.\d+)/) ||
+                       onboardingMapsUrl.match(/ll=(-?\d+\.\d+),(-?\d+\.\d+)/);
+    if (coordMatch) {
+      parsedLat = parseFloat(coordMatch[1]);
+      parsedLon = parseFloat(coordMatch[2]);
+    }
+
     const appData = {
       shopName: onboardingShopName,
       ownerName: onboardingOwnerName,
       email: onboardingEmail,
       contactNumber: onboardingContactNumber,
       location: onboardingLocation,
-      lat: Number(onboardingLat),
-      lon: Number(onboardingLon),
+      mapsUrl: onboardingMapsUrl.trim(),
+      lat: parsedLat,
+      lon: parsedLon,
       chairsCount: onboardingChairsCount,
       openingTime: onboardingOpeningTime,
       closingTime: onboardingClosingTime
@@ -667,10 +691,8 @@ export default function App() {
       setOnboardingEmail('');
       setOnboardingContactNumber('');
       setOnboardingLocation('');
-      setOnboardingServices([
-        { name: 'Classic Haircut', price: 150, durationMinutes: 20 },
-        { name: 'Beard Trim & Shave', price: 100, durationMinutes: 15 }
-      ]);
+      setOnboardingMapsUrl('');
+      setOnboardingServices([]);
     } else {
       setOnboardingError(res.message);
     }
@@ -695,8 +717,7 @@ export default function App() {
     setOnboardingEmail(app.email);
     setOnboardingContactNumber(app.contactNumber);
     setOnboardingLocation(app.location);
-    setOnboardingLat(String(app.lat));
-    setOnboardingLon(String(app.lon));
+    setOnboardingMapsUrl(app.mapsUrl || '');
     setOnboardingChairsCount(app.chairsCount);
     setOnboardingOpeningTime(app.openingTime);
     setOnboardingClosingTime(app.closingTime);
@@ -1660,7 +1681,7 @@ export default function App() {
                       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
                         <div>
                           <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '8px' }}>
-                            Shop/Salon Name
+                            Shop/Salon Name <span style={{ color: 'var(--status-red)' }}>*</span>
                           </label>
                           <input 
                             type="text" 
@@ -1673,7 +1694,7 @@ export default function App() {
                         </div>
                         <div>
                           <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '8px' }}>
-                            Owner / Main Barber Name
+                            Owner / Main Barber Name <span style={{ color: 'var(--status-red)' }}>*</span>
                           </label>
                           <input 
                             type="text" 
@@ -1689,7 +1710,7 @@ export default function App() {
                       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
                         <div>
                           <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '8px' }}>
-                            Contact Email (For logins)
+                            Contact Email (For logins) <span style={{ color: 'var(--status-red)' }}>*</span>
                           </label>
                           <input 
                             type="email" 
@@ -1702,7 +1723,7 @@ export default function App() {
                         </div>
                         <div>
                           <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '8px' }}>
-                            Contact Number
+                            Contact Number <span style={{ color: 'var(--status-red)' }}>*</span>
                           </label>
                           <input 
                             type="tel" 
@@ -1717,7 +1738,7 @@ export default function App() {
 
                       <div>
                         <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '8px' }}>
-                          Shop Location Address (Bhopal)
+                          Shop Location Address <span style={{ color: 'var(--status-red)' }}>*</span>
                         </label>
                         <input 
                           type="text" 
@@ -1729,32 +1750,27 @@ export default function App() {
                         />
                       </div>
 
+                      <div>
+                        <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '8px' }}>
+                          Google Maps URL <span style={{ color: 'var(--status-red)' }}>*</span>
+                        </label>
+                        <input 
+                          type="url" 
+                          placeholder="e.g. https://maps.google.com/?q=your+shop+location"
+                          value={onboardingMapsUrl}
+                          onChange={(e) => setOnboardingMapsUrl(e.target.value)}
+                          style={{ width: '100%', padding: '12px', background: 'var(--bg-tertiary)', border: '1px solid var(--border-light)', borderRadius: '10px', color: 'var(--text-primary)', outline: 'none' }}
+                          required
+                        />
+                        <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '4px', display: 'block' }}>
+                          Open Google Maps → Search your shop → Copy the URL from your browser
+                        </span>
+                      </div>
+
                       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px' }}>
                         <div>
                           <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '8px' }}>
-                            Latitude (Bhopal coords)
-                          </label>
-                          <input 
-                            type="text" 
-                            value={onboardingLat}
-                            onChange={(e) => setOnboardingLat(e.target.value)}
-                            style={{ width: '100%', padding: '12px', background: 'var(--bg-tertiary)', border: '1px solid var(--border-light)', borderRadius: '10px', color: 'var(--text-primary)', outline: 'none' }}
-                          />
-                        </div>
-                        <div>
-                          <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '8px' }}>
-                            Longitude (Bhopal coords)
-                          </label>
-                          <input 
-                            type="text" 
-                            value={onboardingLon}
-                            onChange={(e) => setOnboardingLon(e.target.value)}
-                            style={{ width: '100%', padding: '12px', background: 'var(--bg-tertiary)', border: '1px solid var(--border-light)', borderRadius: '10px', color: 'var(--text-primary)', outline: 'none' }}
-                          />
-                        </div>
-                        <div>
-                          <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '8px' }}>
-                            Stylist Chairs Count
+                            Stylist Chairs Count <span style={{ color: 'var(--status-red)' }}>*</span>
                           </label>
                           <input 
                             type="number" 
@@ -1765,12 +1781,9 @@ export default function App() {
                             style={{ width: '100%', padding: '12px', background: 'var(--bg-tertiary)', border: '1px solid var(--border-light)', borderRadius: '10px', color: 'var(--text-primary)', outline: 'none' }}
                           />
                         </div>
-                      </div>
-
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
                         <div>
                           <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '8px' }}>
-                            Opening Hours (24hr format)
+                            Opening Hours <span style={{ color: 'var(--status-red)' }}>*</span>
                           </label>
                           <input 
                             type="time" 
@@ -1781,7 +1794,7 @@ export default function App() {
                         </div>
                         <div>
                           <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '8px' }}>
-                            Closing Hours (24hr format)
+                            Closing Hours <span style={{ color: 'var(--status-red)' }}>*</span>
                           </label>
                           <input 
                             type="time" 
@@ -1795,7 +1808,7 @@ export default function App() {
                       {/* Services Manager */}
                       <div style={{ borderTop: '1px solid var(--border-light)', paddingTop: '20px' }}>
                         <h4 style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '4px' }}>
-                          Services Offered & Price Menus
+                          Services Offered & Price Menus <span style={{ color: 'var(--status-red)' }}>*</span>
                         </h4>
                         <p style={{ color: 'var(--text-secondary)', fontSize: '0.8rem', marginBottom: '16px' }}>
                           Add services that clients can book at your shop.
@@ -1811,17 +1824,17 @@ export default function App() {
                           />
                           <input 
                             type="number" 
-                            placeholder="Price (₹)"
+                            placeholder="Price in ₹ (e.g. 150)"
                             value={newServicePrice}
                             onChange={(e) => setNewServicePrice(e.target.value)}
-                            style={{ flex: 1, minWidth: '80px', padding: '10px', background: 'var(--bg-tertiary)', border: '1px solid var(--border-light)', borderRadius: '8px', color: 'var(--text-primary)', outline: 'none', fontSize: '0.88rem' }}
+                            style={{ flex: 1, minWidth: '100px', padding: '10px', background: 'var(--bg-tertiary)', border: '1px solid var(--border-light)', borderRadius: '8px', color: 'var(--text-primary)', outline: 'none', fontSize: '0.88rem' }}
                           />
                           <input 
                             type="number" 
-                            placeholder="Mins"
+                            placeholder="Duration in mins (e.g. 20)"
                             value={newServiceDuration}
                             onChange={(e) => setNewServiceDuration(e.target.value)}
-                            style={{ flex: 1, minWidth: '80px', padding: '10px', background: 'var(--bg-tertiary)', border: '1px solid var(--border-light)', borderRadius: '8px', color: 'var(--text-primary)', outline: 'none', fontSize: '0.88rem' }}
+                            style={{ flex: 1, minWidth: '120px', padding: '10px', background: 'var(--bg-tertiary)', border: '1px solid var(--border-light)', borderRadius: '8px', color: 'var(--text-primary)', outline: 'none', fontSize: '0.88rem' }}
                           />
                           <button 
                             type="button" 
@@ -2823,6 +2836,210 @@ export default function App() {
               </div>
             </div>
 
+          </div>
+
+          {/* ==========================================
+             BARBER SERVICE MANAGEMENT PANEL
+             ========================================== */}
+          <div className="glass-card gsap-card" style={{ marginTop: '32px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '20px' }}>
+              <Scissors size={20} style={{ color: 'var(--accent-gold)' }} />
+              <h2 style={{ fontSize: '1.4rem' }}>Manage Your Services</h2>
+            </div>
+            <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginBottom: '24px' }}>
+              Add new services, update prices, or remove services from your menu. Changes reflect instantly for your customers.
+            </p>
+
+            {/* Add New Service Row */}
+            <div style={{ display: 'flex', gap: '10px', marginBottom: '24px', flexWrap: 'wrap', padding: '16px', background: 'var(--bg-secondary)', borderRadius: '12px', border: '1px solid var(--border-light)' }}>
+              <input 
+                type="text" 
+                placeholder="New service name (e.g. Hair Spa)"
+                value={portalNewServiceName}
+                onChange={(e) => setPortalNewServiceName(e.target.value)}
+                style={{ flex: 2, minWidth: '180px', padding: '10px 14px', background: 'var(--bg-tertiary)', border: '1px solid var(--border-light)', borderRadius: '8px', color: 'var(--text-primary)', outline: 'none', fontSize: '0.88rem' }}
+              />
+              <input 
+                type="number" 
+                placeholder="Price in ₹ (e.g. 300)"
+                value={portalNewServicePrice}
+                onChange={(e) => setPortalNewServicePrice(e.target.value)}
+                style={{ flex: 1, minWidth: '120px', padding: '10px 14px', background: 'var(--bg-tertiary)', border: '1px solid var(--border-light)', borderRadius: '8px', color: 'var(--text-primary)', outline: 'none', fontSize: '0.88rem' }}
+              />
+              <input 
+                type="number" 
+                placeholder="Duration in mins (e.g. 30)"
+                value={portalNewServiceDuration}
+                onChange={(e) => setPortalNewServiceDuration(e.target.value)}
+                style={{ flex: 1, minWidth: '140px', padding: '10px 14px', background: 'var(--bg-tertiary)', border: '1px solid var(--border-light)', borderRadius: '8px', color: 'var(--text-primary)', outline: 'none', fontSize: '0.88rem' }}
+              />
+              <button 
+                type="button"
+                className="gold-glow-btn"
+                style={{ padding: '10px 20px', fontSize: '0.88rem', display: 'flex', alignItems: 'center', gap: '6px' }}
+                onClick={async () => {
+                  if (!portalNewServiceName.trim()) {
+                    showToast('Please enter a service name.');
+                    return;
+                  }
+                  const price = Number(portalNewServicePrice);
+                  const duration = Number(portalNewServiceDuration);
+                  if (!price || price <= 0) {
+                    showToast('Please enter a valid price.');
+                    return;
+                  }
+                  if (!duration || duration <= 0) {
+                    showToast('Please enter a valid duration in minutes.');
+                    return;
+                  }
+                  const res = await addBarberService(activeBarber.id, { name: portalNewServiceName.trim(), price, durationMinutes: duration });
+                  if (res.success) {
+                    showToast(res.message);
+                    setPortalNewServiceName('');
+                    setPortalNewServicePrice('');
+                    setPortalNewServiceDuration('');
+                  } else {
+                    showToast(res.message);
+                  }
+                }}
+              >
+                <Plus size={16} /> Add Service
+              </button>
+            </div>
+
+            {/* Current Services List */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              {services.filter(s => s.barberId === activeBarber.id).length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '30px', color: 'var(--text-muted)', fontSize: '0.9rem' }}>
+                  No services found. Add your first service above!
+                </div>
+              ) : (
+                services.filter(s => s.barberId === activeBarber.id).map((srv) => (
+                  <div 
+                    key={srv.id}
+                    style={{ 
+                      display: 'flex', 
+                      justifyContent: 'space-between', 
+                      alignItems: 'center', 
+                      background: editingServiceId === srv.id ? 'rgba(212, 175, 55, 0.05)' : 'var(--bg-secondary)',
+                      border: editingServiceId === srv.id ? '1px solid var(--accent-gold)' : '1px solid var(--border-light)',
+                      borderRadius: '10px', 
+                      padding: '14px 18px',
+                      transition: 'all 0.2s ease',
+                      flexWrap: 'wrap',
+                      gap: '12px'
+                    }}
+                  >
+                    {editingServiceId === srv.id ? (
+                      /* Inline Edit Mode */
+                      <>
+                        <div style={{ display: 'flex', gap: '10px', flex: 1, flexWrap: 'wrap', minWidth: '0' }}>
+                          <input 
+                            type="text" 
+                            value={editServiceName}
+                            onChange={(e) => setEditServiceName(e.target.value)}
+                            style={{ flex: 2, minWidth: '140px', padding: '8px 12px', background: 'var(--bg-tertiary)', border: '1px solid var(--border-light)', borderRadius: '6px', color: 'var(--text-primary)', outline: 'none', fontSize: '0.88rem' }}
+                          />
+                          <input 
+                            type="number" 
+                            value={editServicePrice}
+                            onChange={(e) => setEditServicePrice(e.target.value)}
+                            placeholder="Price ₹"
+                            style={{ flex: 1, minWidth: '80px', padding: '8px 12px', background: 'var(--bg-tertiary)', border: '1px solid var(--border-light)', borderRadius: '6px', color: 'var(--text-primary)', outline: 'none', fontSize: '0.88rem' }}
+                          />
+                          <input 
+                            type="number" 
+                            value={editServiceDuration}
+                            onChange={(e) => setEditServiceDuration(e.target.value)}
+                            placeholder="Mins"
+                            style={{ flex: 1, minWidth: '70px', padding: '8px 12px', background: 'var(--bg-tertiary)', border: '1px solid var(--border-light)', borderRadius: '6px', color: 'var(--text-primary)', outline: 'none', fontSize: '0.88rem' }}
+                          />
+                        </div>
+                        <div style={{ display: 'flex', gap: '8px' }}>
+                          <button 
+                            type="button"
+                            className="gold-glow-btn"
+                            style={{ padding: '6px 14px', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '4px' }}
+                            onClick={async () => {
+                              const price = Number(editServicePrice);
+                              const duration = Number(editServiceDuration);
+                              if (!editServiceName.trim() || price <= 0 || duration <= 0) {
+                                showToast('Please fill in all fields correctly.');
+                                return;
+                              }
+                              const res = await updateBarberService(activeBarber.id, srv.id, { name: editServiceName.trim(), price, durationMinutes: duration });
+                              if (res.success) {
+                                showToast(res.message);
+                                setEditingServiceId(null);
+                              } else {
+                                showToast(res.message);
+                              }
+                            }}
+                          >
+                            <CheckCircle size={14} /> Save
+                          </button>
+                          <button 
+                            type="button"
+                            className="btn-secondary"
+                            style={{ padding: '6px 14px', fontSize: '0.8rem' }}
+                            onClick={() => setEditingServiceId(null)}
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </>
+                    ) : (
+                      /* Display Mode */
+                      <>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flex: 1 }}>
+                          <div>
+                            <strong style={{ fontSize: '0.95rem', color: 'var(--text-primary)' }}>{srv.name}</strong>
+                            <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginLeft: '12px' }}>
+                              {srv.durationMinutes} mins
+                            </span>
+                          </div>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                          <span style={{ fontWeight: 700, color: 'var(--accent-gold)', fontSize: '1rem' }}>
+                            ₹{srv.price}
+                          </span>
+                          <button 
+                            type="button"
+                            style={{ background: 'transparent', border: 'none', color: 'var(--accent-gold)', cursor: 'pointer', padding: '4px' }}
+                            title="Edit service"
+                            onClick={() => {
+                              setEditingServiceId(srv.id);
+                              setEditServiceName(srv.name);
+                              setEditServicePrice(String(srv.price));
+                              setEditServiceDuration(String(srv.durationMinutes));
+                            }}
+                          >
+                            <Edit size={16} />
+                          </button>
+                          <button 
+                            type="button"
+                            style={{ background: 'transparent', border: 'none', color: 'var(--status-red)', cursor: 'pointer', padding: '4px' }}
+                            title="Delete service"
+                            onClick={async () => {
+                              if (confirm(`Remove "${srv.name}" from your service menu?`)) {
+                                const res = await deleteBarberService(activeBarber.id, srv.id);
+                                if (res.success) {
+                                  showToast(res.message);
+                                } else {
+                                  showToast(res.message);
+                                }
+                              }
+                            }}
+                          >
+                            <Trash size={16} />
+                          </button>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                ))
+              )}
+            </div>
           </div>
 
         </main>
@@ -4054,7 +4271,7 @@ export default function App() {
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
                       <div>
                         <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '8px' }}>
-                          Shop/Salon Name
+                          Shop/Salon Name <span style={{ color: 'var(--status-red)' }}>*</span>
                         </label>
                         <input 
                           type="text" 
@@ -4067,7 +4284,7 @@ export default function App() {
                       </div>
                       <div>
                         <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '8px' }}>
-                          Owner / Main Barber Name
+                          Owner / Main Barber Name <span style={{ color: 'var(--status-red)' }}>*</span>
                         </label>
                         <input 
                           type="text" 
@@ -4083,7 +4300,7 @@ export default function App() {
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
                       <div>
                         <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '8px' }}>
-                          Contact Email (For logins)
+                          Contact Email (For logins) <span style={{ color: 'var(--status-red)' }}>*</span>
                         </label>
                         <input 
                           type="email" 
@@ -4096,7 +4313,7 @@ export default function App() {
                       </div>
                       <div>
                         <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '8px' }}>
-                          Contact Number
+                          Contact Number <span style={{ color: 'var(--status-red)' }}>*</span>
                         </label>
                         <input 
                           type="tel" 
@@ -4111,7 +4328,7 @@ export default function App() {
 
                     <div>
                       <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '8px' }}>
-                        Shop Location Address (Bhopal)
+                        Shop Location Address <span style={{ color: 'var(--status-red)' }}>*</span>
                       </label>
                       <input 
                         type="text" 
@@ -4123,32 +4340,27 @@ export default function App() {
                       />
                     </div>
 
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '8px' }}>
+                        Google Maps URL <span style={{ color: 'var(--status-red)' }}>*</span>
+                      </label>
+                      <input 
+                        type="url" 
+                        placeholder="e.g. https://maps.google.com/?q=your+shop+location"
+                        value={onboardingMapsUrl}
+                        onChange={(e) => setOnboardingMapsUrl(e.target.value)}
+                        style={{ width: '100%', padding: '12px', background: 'var(--bg-tertiary)', border: '1px solid var(--border-light)', borderRadius: '10px', color: 'var(--text-primary)', outline: 'none' }}
+                        required
+                      />
+                      <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '4px', display: 'block' }}>
+                        Open Google Maps → Search your shop → Copy the URL from your browser
+                      </span>
+                    </div>
+
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px' }}>
                       <div>
                         <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '8px' }}>
-                          Latitude (Bhopal coords)
-                        </label>
-                        <input 
-                          type="text" 
-                          value={onboardingLat}
-                          onChange={(e) => setOnboardingLat(e.target.value)}
-                          style={{ width: '100%', padding: '12px', background: 'var(--bg-tertiary)', border: '1px solid var(--border-light)', borderRadius: '10px', color: 'var(--text-primary)', outline: 'none' }}
-                        />
-                      </div>
-                      <div>
-                        <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '8px' }}>
-                          Longitude (Bhopal coords)
-                        </label>
-                        <input 
-                          type="text" 
-                          value={onboardingLon}
-                          onChange={(e) => setOnboardingLon(e.target.value)}
-                          style={{ width: '100%', padding: '12px', background: 'var(--bg-tertiary)', border: '1px solid var(--border-light)', borderRadius: '10px', color: 'var(--text-primary)', outline: 'none' }}
-                        />
-                      </div>
-                      <div>
-                        <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '8px' }}>
-                          Stylist Chairs Count
+                          Stylist Chairs Count <span style={{ color: 'var(--status-red)' }}>*</span>
                         </label>
                         <input 
                           type="number" 
@@ -4159,12 +4371,9 @@ export default function App() {
                           style={{ width: '100%', padding: '12px', background: 'var(--bg-tertiary)', border: '1px solid var(--border-light)', borderRadius: '10px', color: 'var(--text-primary)', outline: 'none' }}
                         />
                       </div>
-                    </div>
-
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
                       <div>
                         <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '8px' }}>
-                          Opening Hours (24hr format)
+                          Opening Hours <span style={{ color: 'var(--status-red)' }}>*</span>
                         </label>
                         <input 
                           type="time" 
@@ -4175,7 +4384,7 @@ export default function App() {
                       </div>
                       <div>
                         <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '8px' }}>
-                          Closing Hours (24hr format)
+                          Closing Hours <span style={{ color: 'var(--status-red)' }}>*</span>
                         </label>
                         <input 
                           type="time" 
@@ -4189,7 +4398,7 @@ export default function App() {
                     {/* Services Manager */}
                     <div style={{ borderTop: '1px solid var(--border-light)', paddingTop: '20px' }}>
                       <h4 style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '4px' }}>
-                        Services Offered & Price Menus
+                        Services Offered & Price Menus <span style={{ color: 'var(--status-red)' }}>*</span>
                       </h4>
                       <p style={{ color: 'var(--text-secondary)', fontSize: '0.8rem', marginBottom: '16px' }}>
                         Add services that clients can book at your shop.
@@ -4205,17 +4414,17 @@ export default function App() {
                         />
                         <input 
                           type="number" 
-                          placeholder="Price (₹)"
+                          placeholder="Price in ₹ (e.g. 150)"
                           value={newServicePrice}
                           onChange={(e) => setNewServicePrice(e.target.value)}
-                          style={{ flex: 1, minWidth: '80px', padding: '10px', background: 'var(--bg-tertiary)', border: '1px solid var(--border-light)', borderRadius: '8px', color: 'var(--text-primary)', outline: 'none', fontSize: '0.88rem' }}
+                          style={{ flex: 1, minWidth: '100px', padding: '10px', background: 'var(--bg-tertiary)', border: '1px solid var(--border-light)', borderRadius: '8px', color: 'var(--text-primary)', outline: 'none', fontSize: '0.88rem' }}
                         />
                         <input 
                           type="number" 
-                          placeholder="Mins"
+                          placeholder="Duration in mins (e.g. 20)"
                           value={newServiceDuration}
                           onChange={(e) => setNewServiceDuration(e.target.value)}
-                          style={{ flex: 1, minWidth: '80px', padding: '10px', background: 'var(--bg-tertiary)', border: '1px solid var(--border-light)', borderRadius: '8px', color: 'var(--text-primary)', outline: 'none', fontSize: '0.88rem' }}
+                          style={{ flex: 1, minWidth: '120px', padding: '10px', background: 'var(--bg-tertiary)', border: '1px solid var(--border-light)', borderRadius: '8px', color: 'var(--text-primary)', outline: 'none', fontSize: '0.88rem' }}
                         />
                         <button 
                           type="button" 

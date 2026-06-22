@@ -879,6 +879,83 @@ app.patch('/api/barbers/:id/delay', async (req, res) => {
   }
 });
 
+// 9.1 Barber service management: Add Service
+app.post('/api/barbers/:barberId/services', async (req, res) => {
+  const { barberId } = req.params;
+  const { name, price, durationMinutes } = req.body;
+
+  if (!name || price === undefined || durationMinutes === undefined) {
+    return res.status(400).json({ success: false, message: 'Service name, price, and duration are required' });
+  }
+
+  try {
+    const serviceId = `s-${barberId}-${Date.now()}`;
+    await pool.query(
+      `INSERT INTO services (id, name, description, price, duration_minutes, barber_id) 
+       VALUES (?, ?, ?, ?, ?, ?)`,
+      [
+        serviceId,
+        name.trim(),
+        `Premium ${name.trim()} service custom tailored for you.`,
+        Number(price),
+        Number(durationMinutes),
+        barberId
+      ]
+    );
+    res.status(201).json({
+      success: true,
+      message: 'Service added successfully!',
+      service: {
+        id: serviceId,
+        name: name.trim(),
+        description: `Premium ${name.trim()} service custom tailored for you.`,
+        price: Number(price),
+        durationMinutes: Number(durationMinutes),
+        barberId
+      }
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// 9.2 Barber service management: Update Service
+app.put('/api/barbers/:barberId/services/:serviceId', async (req, res) => {
+  const { barberId, serviceId } = req.params;
+  const { name, price, durationMinutes } = req.body;
+
+  if (!name || price === undefined || durationMinutes === undefined) {
+    return res.status(400).json({ success: false, message: 'Service name, price, and duration are required' });
+  }
+
+  try {
+    await pool.query(
+      `UPDATE services 
+       SET name = ?, price = ?, duration_minutes = ? 
+       WHERE id = ? AND barber_id = ?`,
+      [name.trim(), Number(price), Number(durationMinutes), serviceId, barberId]
+    );
+    res.json({ success: true, message: 'Service updated successfully!' });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// 9.3 Barber service management: Delete Service
+app.delete('/api/barbers/:barberId/services/:serviceId', async (req, res) => {
+  const { barberId, serviceId } = req.params;
+
+  try {
+    await pool.query(
+      'DELETE FROM services WHERE id = ? AND barber_id = ?',
+      [serviceId, barberId]
+    );
+    res.json({ success: true, message: 'Service deleted successfully!' });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
 // ==========================================
 // BARBER ONBOARDING & ADMIN PORTAL ROUTES
 // ==========================================
@@ -891,6 +968,7 @@ app.post('/api/onboarding/apply', async (req, res) => {
     email,
     contactNumber,
     location,
+    mapsUrl,
     lat,
     lon,
     chairsCount,
@@ -901,10 +979,10 @@ app.post('/api/onboarding/apply', async (req, res) => {
 
   if (
     !shopName || !ownerName || !email || !contactNumber || !location ||
-    lat === undefined || lon === undefined || chairsCount === undefined ||
+    !mapsUrl || chairsCount === undefined ||
     !openingTime || !closingTime || !Array.isArray(services) || services.length === 0
   ) {
-    return res.status(400).json({ success: false, message: 'All shop details and at least one service are required' });
+    return res.status(400).json({ success: false, message: 'All shop details, Google Maps URL, and at least one service are required' });
   }
 
   const trimmedEmail = email.trim().toLowerCase();
@@ -929,13 +1007,13 @@ app.post('/api/onboarding/apply', async (req, res) => {
       // Update existing application
       await conn.query(
         `UPDATE barber_applications 
-         SET shop_name = ?, owner_name = ?, contact_number = ?, location = ?, 
+         SET shop_name = ?, owner_name = ?, contact_number = ?, location = ?, maps_url = ?, 
              lat = ?, lon = ?, chairs_count = ?, opening_time = ?, closing_time = ?, 
              status = 'pending', rejection_feedback = NULL 
          WHERE id = ?`,
         [
-          shopName.trim(), ownerName.trim(), contactNumber.trim(), location.trim(),
-          Number(lat), Number(lon), Number(chairsCount), openingTime, closingTime,
+          shopName.trim(), ownerName.trim(), contactNumber.trim(), location.trim(), mapsUrl.trim(),
+          Number(lat || 23.2500), Number(lon || 77.4100), Number(chairsCount), openingTime, closingTime,
           applicationId
         ]
       );
@@ -946,11 +1024,11 @@ app.post('/api/onboarding/apply', async (req, res) => {
       // Create new application
       const [insertResult] = await conn.query(
         `INSERT INTO barber_applications 
-         (shop_name, owner_name, email, contact_number, location, lat, lon, chairs_count, opening_time, closing_time, status) 
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending')`,
+         (shop_name, owner_name, email, contact_number, location, maps_url, lat, lon, chairs_count, opening_time, closing_time, status) 
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending')`,
         [
-          shopName.trim(), ownerName.trim(), trimmedEmail, contactNumber.trim(), location.trim(),
-          Number(lat), Number(lon), Number(chairsCount), openingTime, closingTime
+          shopName.trim(), ownerName.trim(), trimmedEmail, contactNumber.trim(), location.trim(), mapsUrl.trim(),
+          Number(lat || 23.2500), Number(lon || 77.4100), Number(chairsCount), openingTime, closingTime
         ]
       );
       applicationId = insertResult.insertId;
@@ -1008,6 +1086,7 @@ app.get('/api/onboarding/status/:email', async (req, res) => {
         email: app.email,
         contactNumber: app.contact_number,
         location: app.location,
+        mapsUrl: app.maps_url,
         lat: Number(app.lat),
         lon: Number(app.lon),
         chairsCount: app.chairs_count,
@@ -1043,6 +1122,7 @@ app.get('/api/admin/applications', async (req, res) => {
           email: app.email,
           contactNumber: app.contact_number,
           location: app.location,
+          mapsUrl: app.maps_url,
           lat: Number(app.lat),
           lon: Number(app.lon),
           chairsCount: app.chairs_count,
@@ -1071,6 +1151,7 @@ app.put('/api/admin/applications/:id', async (req, res) => {
     ownerName,
     contactNumber,
     location,
+    mapsUrl,
     lat,
     lon,
     chairsCount,
@@ -1080,11 +1161,11 @@ app.put('/api/admin/applications/:id', async (req, res) => {
   } = req.body;
 
   if (
-    !shopName || !ownerName || !contactNumber || !location ||
-    lat === undefined || lon === undefined || chairsCount === undefined ||
+    !shopName || !ownerName || !contactNumber || !location || !mapsUrl ||
+    chairsCount === undefined ||
     !openingTime || !closingTime || !Array.isArray(services) || services.length === 0
   ) {
-    return res.status(400).json({ success: false, message: 'All shop details and services are required for update' });
+    return res.status(400).json({ success: false, message: 'All shop details, Google Maps URL, and services are required for update' });
   }
 
   const conn = await pool.getConnection();
@@ -1106,12 +1187,12 @@ app.put('/api/admin/applications/:id', async (req, res) => {
     // Update application
     await conn.query(
       `UPDATE barber_applications 
-       SET shop_name = ?, owner_name = ?, contact_number = ?, location = ?, 
+       SET shop_name = ?, owner_name = ?, contact_number = ?, location = ?, maps_url = ?, 
            lat = ?, lon = ?, chairs_count = ?, opening_time = ?, closing_time = ? 
        WHERE id = ?`,
       [
-        shopName.trim(), ownerName.trim(), contactNumber.trim(), location.trim(),
-        Number(lat), Number(lon), Number(chairsCount), openingTime, closingTime,
+        shopName.trim(), ownerName.trim(), contactNumber.trim(), location.trim(), mapsUrl.trim(),
+        Number(lat || 23.2500), Number(lon || 77.4100), Number(chairsCount), openingTime, closingTime,
         id
       ]
     );
@@ -1166,7 +1247,7 @@ app.post('/api/admin/applications/:id/approve', async (req, res) => {
     const [appServices] = await conn.query('SELECT * FROM application_services WHERE application_id = ?', [id]);
 
     const barberId = `b-${Date.now()}`;
-    const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(app.shop_name + ' ' + app.location)}`;
+    const mapsUrl = app.maps_url || `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(app.shop_name + ' ' + app.location)}`;
 
     // 3. Create Barber profile
     await conn.query(

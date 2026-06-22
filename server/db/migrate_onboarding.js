@@ -50,6 +50,7 @@ const migrate = async () => {
         email VARCHAR(100) NOT NULL,
         contact_number VARCHAR(20) NOT NULL,
         location VARCHAR(255) NOT NULL,
+        maps_url VARCHAR(500) NULL,
         lat DECIMAL(9,6) NOT NULL,
         lon DECIMAL(9,6) NOT NULL,
         chairs_count INT NOT NULL,
@@ -62,6 +63,26 @@ const migrate = async () => {
       )
     `);
     console.log('✅ Table barber_applications created or verified.');
+
+    // 3.1 Check if barber_applications.maps_url exists
+    const [mapsUrlColumns] = await pool.query(`
+      SELECT COLUMN_NAME 
+      FROM INFORMATION_SCHEMA.COLUMNS 
+      WHERE TABLE_SCHEMA = DATABASE() 
+        AND TABLE_NAME = 'barber_applications' 
+        AND COLUMN_NAME = 'maps_url'
+    `);
+
+    if (mapsUrlColumns.length === 0) {
+      console.log('➕ Adding column barber_applications.maps_url...');
+      await pool.query(`
+        ALTER TABLE barber_applications 
+        ADD COLUMN maps_url VARCHAR(500) NULL
+      `);
+      console.log('✅ Added barber_applications.maps_url column.');
+    } else {
+      console.log('ℹ️ Column barber_applications.maps_url already exists.');
+    }
 
     // 4. Create application_services table
     console.log('🔄 Creating table application_services...');
