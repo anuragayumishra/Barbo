@@ -371,15 +371,15 @@ export default function App() {
 
   // Dynamic copies for rebranding
   const heroSubtitle = activeGenderFilter === 'men' 
-    ? "Find Bhopal's premier men's salons and grooming studios. Book precision fades, sharp beard trims, and classic head shaves instantly."
+    ? "Find Bhopal's premier grooming studios and unisex salons. Book precision fades, sharp beard trims, and classic hair styling instantly."
     : activeGenderFilter === 'women'
-    ? "Discover premium women's and unisex styling lounges in Bhopal. Book luxury hair spas, expert blowouts, and advanced skin care treatments."
+    ? "Discover premium styling lounges and unisex salons in Bhopal. Book professional hair styling, luxury hair spas, and rejuvenating skin care."
     : "Find the finest salons & styling studios in Bhopal, browse verified dynamic menus, and book your appointment in under 30 seconds.";
 
   const discoverSubtitle = activeGenderFilter === 'men'
-    ? "Explore top-rated grooming spots in Bhopal specializing in classic fades, sharp shaves, and relaxing champi sessions."
+    ? "Explore top-rated grooming spots and unisex salons in Bhopal specializing in classic fades, sharp styling, and relaxing treatments."
     : activeGenderFilter === 'women'
-    ? "Discover premium unisex salons and styling lounges offering advanced hair spas, professional blowouts, and rejuvenating facials."
+    ? "Discover premium unisex salons and styling lounges offering advanced hair spas, professional styling, and rejuvenating facials."
     : "Browse top-rated salons, check styling schedules, and book slots instantly with zero prepayment.";
 
   const quickLinksData = {
