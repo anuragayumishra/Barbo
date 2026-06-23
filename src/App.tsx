@@ -352,12 +352,6 @@ export default function App() {
   const [bookingSuccess, setBookingSuccess] = useState(false);
   const [bookingError, setBookingError] = useState('');
 
-  // Payment states
-  const [paymentMethodOption, setPaymentMethodOption] = useState<'Pay At Shop' | 'UPI Online'>('Pay At Shop');
-  const [showPaymentQrModal, setShowPaymentQrModal] = useState(false);
-  const [paymentUpiLoaderStatus, setPaymentUpiLoaderStatus] = useState('');
-  const [paymentUpiError, setPaymentUpiError] = useState('');
-
   // Onboarding Modal States
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [showOnboardingModal, setShowOnboardingModal] = useState(false);
@@ -409,8 +403,7 @@ export default function App() {
   const [adminEditOwnerName, setAdminEditOwnerName] = useState('');
   const [adminEditContactNumber, setAdminEditContactNumber] = useState('');
   const [adminEditLocation, setAdminEditLocation] = useState('');
-  const [adminEditLat, setAdminEditLat] = useState('23.2500');
-  const [adminEditLon, setAdminEditLon] = useState('77.4100');
+  const [adminEditMapsUrl, setAdminEditMapsUrl] = useState('');
   const [adminEditChairsCount, setAdminEditChairsCount] = useState(2);
   const [adminEditOpeningTime, setAdminEditOpeningTime] = useState('09:00');
   const [adminEditClosingTime, setAdminEditClosingTime] = useState('21:00');
@@ -812,8 +805,7 @@ export default function App() {
     setAdminEditOwnerName(app.ownerName);
     setAdminEditContactNumber(app.contactNumber);
     setAdminEditLocation(app.location);
-    setAdminEditLat(String(app.lat));
-    setAdminEditLon(String(app.lon));
+    setAdminEditMapsUrl(app.mapsUrl || '');
     setAdminEditChairsCount(app.chairsCount);
     setAdminEditOpeningTime(app.openingTime);
     setAdminEditClosingTime(app.closingTime);
@@ -827,9 +819,48 @@ export default function App() {
       alert('Please fill in all shop details.');
       return;
     }
+
+    // Validate contact number (exactly 10 digits after stripping non-numeric characters)
+    const cleanedContact = adminEditContactNumber.trim().replace(/\D/g, '');
+    if (cleanedContact.length !== 10) {
+      alert('Contact number must be exactly 10 digits (e.g. 9876543210).');
+      return;
+    }
+
+    if (!adminEditMapsUrl.trim()) {
+      alert('Please provide a Google Maps URL.');
+      return;
+    }
+
+    // Validate Google Maps Link format
+    const isGoogleMaps = (url: string) => {
+      const trimmed = url.trim();
+      if (!trimmed.startsWith('http://') && !trimmed.startsWith('https://')) {
+        return false;
+      }
+      return /google\..*\/maps/i.test(trimmed) || 
+             /maps\.app\.goo\.gl/i.test(trimmed) || 
+             /goo\.gl\/maps/i.test(trimmed);
+    };
+    if (!isGoogleMaps(adminEditMapsUrl)) {
+      alert('Please enter a valid Google Maps link (e.g. https://maps.app.goo.gl/... or https://google.com/maps/...).');
+      return;
+    }
+
     if (adminEditServices.length === 0) {
       alert('At least one service is required.');
       return;
+    }
+
+    // Parse coordinates from Maps URL
+    let parsedLat = 23.2500;
+    let parsedLon = 77.4100;
+    const coordMatch = adminEditMapsUrl.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/) ||
+                       adminEditMapsUrl.match(/query=(-?\d+\.\d+),(-?\d+\.\d+)/) ||
+                       adminEditMapsUrl.match(/ll=(-?\d+\.\d+),(-?\d+\.\d+)/);
+    if (coordMatch) {
+      parsedLat = parseFloat(coordMatch[1]);
+      parsedLon = parseFloat(coordMatch[2]);
     }
 
     const appData = {
@@ -837,8 +868,9 @@ export default function App() {
       ownerName: adminEditOwnerName,
       contactNumber: adminEditContactNumber,
       location: adminEditLocation,
-      lat: Number(adminEditLat),
-      lon: Number(adminEditLon),
+      mapsUrl: adminEditMapsUrl.trim(),
+      lat: parsedLat,
+      lon: parsedLon,
       chairsCount: adminEditChairsCount,
       openingTime: adminEditOpeningTime,
       closingTime: adminEditClosingTime
@@ -933,10 +965,6 @@ export default function App() {
     setSelectedTimeSlot('');
     setBookingSuccess(false);
     setBookingError('');
-    setPaymentMethodOption('Pay At Shop');
-    setShowPaymentQrModal(false);
-    setPaymentUpiLoaderStatus('');
-    setPaymentUpiError('');
     setIsBookingOpen(true);
 
     // Modal Spring Animate
@@ -961,10 +989,6 @@ export default function App() {
     
     setBookingSuccess(false);
     setBookingError('');
-    setPaymentMethodOption('Pay At Shop');
-    setShowPaymentQrModal(false);
-    setPaymentUpiLoaderStatus('');
-    setPaymentUpiError('');
     setIsBookingOpen(true);
 
     setTimeout(() => {
@@ -1018,17 +1042,6 @@ export default function App() {
       return;
     }
 
-    if (paymentMethodOption === 'UPI Online') {
-      setIsBookingOpen(false);
-      setPaymentUpiLoaderStatus('Initializing UPI secure channel...');
-      setPaymentUpiError('');
-      setShowPaymentQrModal(true);
-      setTimeout(() => {
-        setPaymentUpiLoaderStatus('');
-      }, 1200);
-      return;
-    }
-
     const success = await bookAppointment(
       selectedBarber.id,
       selectedDate,
@@ -1053,45 +1066,6 @@ export default function App() {
     }
   };
 
-  const handleConfirmUpiBooking = async (simulatedSuccess: boolean) => {
-    if (!selectedBarber || !selectedDate || !selectedTimeSlot || selectedServiceIds.length === 0) {
-      return;
-    }
-
-    if (simulatedSuccess) {
-      setPaymentUpiLoaderStatus('Contacting bank gateway...');
-      await new Promise((r) => setTimeout(r, 800));
-      setPaymentUpiLoaderStatus('Verifying transaction token...');
-      await new Promise((r) => setTimeout(r, 600));
-
-      const success = await bookAppointment(
-        selectedBarber.id,
-        selectedDate,
-        selectedTimeSlot,
-        selectedServiceIds,
-        'UPI Online',
-        'paid'
-      );
-
-      if (success) {
-        setPaymentUpiLoaderStatus('Payment Verified Successfully ✓');
-        setTimeout(() => {
-          setShowPaymentQrModal(false);
-          setPaymentUpiLoaderStatus('');
-          showToast('Appointment booked & paid online successfully!');
-        }, 1200);
-      } else {
-        setPaymentUpiError('Double booking detected! Slot is no longer available.');
-        setPaymentUpiLoaderStatus('');
-      }
-    } else {
-      setPaymentUpiLoaderStatus('Contacting UPI payment gateway...');
-      await new Promise((r) => setTimeout(r, 800));
-      setPaymentUpiError('Transaction Declined: Insufficient balance or bank network timed out.');
-      setPaymentUpiLoaderStatus('');
-    }
-  };
-
   const activeBarberBookings = appointments.filter((app) => app.barberId === activeBarber.id);
   const sortedBarberBookings = [...activeBarberBookings].sort((a, b) => {
     const isFinishedA = a.status === 'completed' || a.status === 'cancelled';
@@ -1108,8 +1082,6 @@ export default function App() {
     return dateTimeA.getTime() - dateTimeB.getTime();
   });
   const completedBookings = activeBarberBookings.filter((app) => app.status === 'completed');
-  const onlineEarnings = completedBookings.filter(app => app.paymentStatus === 'paid').reduce((sum, app) => sum + app.totalPrice, 0);
-  const counterEarnings = completedBookings.filter(app => app.paymentStatus !== 'paid').reduce((sum, app) => sum + app.totalPrice, 0);
   const dailyEarnings = completedBookings.reduce((sum, app) => sum + app.totalPrice, 0);
 
   // ==========================================
@@ -2326,8 +2298,8 @@ export default function App() {
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
                               <div>
                                 <div style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
-                                  <span className={`badge ${app.paymentStatus === 'paid' ? 'badge-green' : 'badge-gold'}`}>
-                                    {app.paymentMethod === 'UPI Online' ? (app.paymentStatus === 'paid' ? 'Paid Online (UPI)' : 'Online Pending') : 'Pay At Shop'}
+                                  <span className="badge badge-gold">
+                                    Pay At Shop
                                   </span>
                                   <span className={`badge ${app.status === 'in_progress' ? 'badge-amber pulse-alert' : 'badge-gold'}`}>
                                     {app.status === 'in_progress' ? 'In Progress' : app.status}
@@ -2585,7 +2557,7 @@ export default function App() {
                             <div style={{ textAlign: 'right', display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
                               <span style={{ fontWeight: 700, color: 'var(--accent-gold)' }}>₹{app.totalPrice}</span>
                               <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>
-                                {app.paymentMethod === 'UPI Online' ? (app.paymentStatus === 'refunded' ? 'Refunded' : 'Online') : 'Cash'}
+                                Pay at Shop
                               </span>
                             </div>
                             <span className={`badge ${app.status === 'completed' ? 'badge-gold' : app.paymentStatus === 'refunded' ? 'badge-green' : 'badge-red'}`}>
@@ -2629,7 +2601,7 @@ export default function App() {
               <div className="glass-card" style={{ padding: '16px 24px', textAlign: 'center', minWidth: '130px' }}>
                 <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Daily Earnings</span>
                 <h3 style={{ fontSize: '1.6rem', color: 'var(--accent-gold)', marginTop: '4px' }}>₹{dailyEarnings}</h3>
-                <span style={{ fontSize: '0.65rem', color: 'var(--text-secondary)' }}>Online: ₹{onlineEarnings} | Counter: ₹{counterEarnings}</span>
+                <span style={{ fontSize: '0.65rem', color: 'var(--text-secondary)' }}>Collected at shop</span>
               </div>
               <div className="glass-card" style={{ padding: '16px 24px', textAlign: 'center', minWidth: '130px' }}>
                 <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Completed cuts</span>
@@ -2743,7 +2715,7 @@ export default function App() {
                         <div>
                           <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Subtotal</span>
                           <span style={{ display: 'block', fontSize: '1.2rem', fontWeight: 700, color: 'var(--accent-gold)' }}>
-                            ₹{app.totalPrice} <span style={{ fontSize: '0.78rem', fontWeight: 500, color: app.paymentStatus === 'paid' ? 'var(--status-green)' : 'var(--status-amber)' }}>({app.paymentMethod === 'UPI Online' ? 'Prepaid Online' : 'Collect Cash/UPI'})</span>
+                            ₹{app.totalPrice} <span style={{ fontSize: '0.78rem', fontWeight: 500, color: 'var(--text-muted)' }}>(Collect Cash/UPI)</span>
                           </span>
                         </div>
                         
@@ -3224,21 +3196,12 @@ export default function App() {
                         style={{ width: '100%', padding: '8px 10px', background: 'var(--bg-tertiary)', border: '1px solid var(--border-light)', borderRadius: '6px', color: 'var(--text-primary)', outline: 'none' }}
                       />
                     </div>
-                    <div>
-                      <label style={{ display: 'block', fontSize: '0.78rem', color: 'var(--text-secondary)', marginBottom: '4px' }}>Latitude</label>
+                    <div style={{ gridColumn: 'span 2' }}>
+                      <label style={{ display: 'block', fontSize: '0.78rem', color: 'var(--text-secondary)', marginBottom: '4px' }}>Google Maps URL</label>
                       <input 
                         type="text" 
-                        value={adminEditLat}
-                        onChange={(e) => setAdminEditLat(e.target.value)}
-                        style={{ width: '100%', padding: '8px 10px', background: 'var(--bg-tertiary)', border: '1px solid var(--border-light)', borderRadius: '6px', color: 'var(--text-primary)', outline: 'none' }}
-                      />
-                    </div>
-                    <div>
-                      <label style={{ display: 'block', fontSize: '0.78rem', color: 'var(--text-secondary)', marginBottom: '4px' }}>Longitude</label>
-                      <input 
-                        type="text" 
-                        value={adminEditLon}
-                        onChange={(e) => setAdminEditLon(e.target.value)}
+                        value={adminEditMapsUrl}
+                        onChange={(e) => setAdminEditMapsUrl(e.target.value)}
                         style={{ width: '100%', padding: '8px 10px', background: 'var(--bg-tertiary)', border: '1px solid var(--border-light)', borderRadius: '6px', color: 'var(--text-primary)', outline: 'none' }}
                       />
                     </div>
@@ -3664,32 +3627,7 @@ export default function App() {
                 </div>
               )}
 
-              {/* Payment selector UI */}
-              {selectedServiceIds.length > 0 && !rescheduleApp && (
-                <div style={{ marginBottom: '24px' }}>
-                  <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '8px' }}>
-                    Select Payment Option
-                  </label>
-                  <div style={{ display: 'flex', gap: '12px' }} className="payment-selector-container">
-                    <button
-                      type="button"
-                      onClick={() => setPaymentMethodOption('Pay At Shop')}
-                      className={paymentMethodOption === 'Pay At Shop' ? 'gold-glow-btn' : 'btn-secondary'}
-                      style={{ flex: 1, padding: '10px', justifyContent: 'center', fontSize: '0.85rem', gap: '8px' }}
-                    >
-                      <User size={14} /> Pay At Shop
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setPaymentMethodOption('UPI Online')}
-                      className={paymentMethodOption === 'UPI Online' ? 'gold-glow-btn' : 'btn-secondary'}
-                      style={{ flex: 1, padding: '10px', justifyContent: 'center', fontSize: '0.85rem', gap: '8px' }}
-                    >
-                      <Sparkles size={14} /> UPI Online
-                    </button>
-                  </div>
-                </div>
-              )}
+
 
               {/* Running total pricing and Confirm checkout button */}
               {selectedServiceIds.length > 0 && (
@@ -3730,152 +3668,7 @@ export default function App() {
         </div>
       )}
 
-      {/* ==========================================
-         UPI ONLINE PAYMENT SIMULATION MODAL
-         ========================================== */}
-      {showPaymentQrModal && selectedBarber && (
-        <div className="modal-backdrop animate-fade-in" onClick={() => {
-          if (!paymentUpiLoaderStatus) {
-            setShowPaymentQrModal(false);
-          }
-        }}>
-          <div 
-            className="glass-card otp-modal-content animate-scale-in" 
-            style={{ 
-              width: '100%', 
-              maxWidth: '460px', 
-              padding: '32px',
-              position: 'relative',
-              boxShadow: 'var(--shadow-premium), var(--shadow-glow)',
-              textAlign: 'center'
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            {/* Modal Close Button */}
-            {!paymentUpiLoaderStatus && (
-              <button 
-                onClick={() => setShowPaymentQrModal(false)} 
-                style={{ position: 'absolute', right: '20px', top: '20px', background: 'transparent', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer' }}
-              >
-                <X size={20} />
-              </button>
-            )}
 
-            {/* Modal Header */}
-            <div style={{ marginBottom: '20px' }}>
-              <div style={{ display: 'inline-flex', padding: '12px', background: 'var(--accent-gold-glow)', borderRadius: '50%', color: 'var(--accent-gold)', marginBottom: '16px' }}>
-                <Sparkles size={24} />
-              </div>
-              <h2 style={{ fontSize: '1.4rem', textTransform: 'uppercase', letterSpacing: '-0.01em' }}>Scan & Pay via UPI</h2>
-              <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginTop: '4px' }}>
-                Complete secure payment to instantly confirm your appointment
-              </p>
-            </div>
-
-            {/* Merchant Details */}
-            <div style={{ background: 'var(--bg-tertiary)', border: '1px solid var(--border-light)', borderRadius: '12px', padding: '16px', marginBottom: '20px', fontSize: '0.9rem', textAlign: 'left' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}>
-                <span style={{ color: 'var(--text-muted)' }}>Styling Studio:</span>
-                <strong style={{ color: 'var(--text-primary)' }}>{selectedBarber.name}</strong>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}>
-                <span style={{ color: 'var(--text-muted)' }}>Date & Time:</span>
-                <strong style={{ color: 'var(--text-primary)' }}>{selectedDate} @ {selectedTimeSlot}</strong>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid var(--border-light)', paddingTop: '8px', marginTop: '8px' }}>
-                <span style={{ color: 'var(--text-muted)', fontWeight: 600 }}>Amount Pay:</span>
-                <strong style={{ color: 'var(--accent-gold)', fontWeight: 700 }}>₹{totalPrice}</strong>
-              </div>
-            </div>
-
-            {/* Payment Loader or Error */}
-            {paymentUpiLoaderStatus ? (
-              <div style={{ padding: '24px 0', minHeight: '200px', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', gap: '16px' }}>
-                <div style={{ width: '40px', height: '40px', border: '4px solid var(--border-light)', borderTopColor: 'var(--accent-gold)', borderRadius: '50%' }} className="spin-animation"></div>
-                <p style={{ color: 'var(--accent-gold)', fontWeight: 600, fontSize: '0.95rem' }}>{paymentUpiLoaderStatus}</p>
-              </div>
-            ) : paymentUpiError ? (
-              <div style={{ padding: '16px 0' }}>
-                <div style={{ background: 'rgba(239, 68, 68, 0.08)', color: 'var(--status-red)', border: '1px solid rgba(239, 68, 68, 0.15)', padding: '16px', borderRadius: '12px', marginBottom: '20px', fontSize: '0.88rem' }}>
-                  <AlertCircle size={24} style={{ margin: '0 auto 8px', display: 'block' }} />
-                  <strong>Payment Failed</strong>
-                  <p style={{ fontSize: '0.8rem', marginTop: '4px' }}>{paymentUpiError}</p>
-                </div>
-                <div style={{ display: 'flex', gap: '12px' }}>
-                  <button
-                    className="btn-secondary"
-                    style={{ flex: 1 }}
-                    onClick={() => {
-                      setPaymentUpiError('');
-                      setPaymentMethodOption('Pay At Shop');
-                      setShowPaymentQrModal(false);
-                      setIsBookingOpen(true);
-                    }}
-                  >
-                    Pay at Shop
-                  </button>
-                  <button
-                    className="gold-glow-btn"
-                    style={{ flex: 1.5, justifyContent: 'center' }}
-                    onClick={() => {
-                      setPaymentUpiError('');
-                    }}
-                  >
-                    Retry Scan
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <div>
-                {/* SVG Stylized UPI QR Code */}
-                <div style={{ position: 'relative', width: '180px', height: '180px', margin: '0 auto 20px', background: '#ffffff', padding: '12px', borderRadius: '16px', display: 'flex', justifyContent: 'center', alignItems: 'center', boxShadow: '0 8px 24px rgba(0,0,0,0.1)' }}>
-                  <svg width="100%" height="100%" viewBox="0 0 100 100" style={{ shapeRendering: 'crispEdges' }}>
-                    {/* Mock QR lines */}
-                    <path d="M 0,0 L 25,0 L 25,25 L 0,25 Z M 10,10 L 15,10 L 15,15 L 10,15 Z" fill="#000" transform="scale(1.2)" />
-                    <path d="M 50,0 L 75,0 L 75,25 L 50,25 Z M 60,10 L 65,10 L 65,15 L 60,15 Z" fill="#000" transform="scale(1.2)" />
-                    <path d="M 0,50 L 25,50 L 25,75 L 0,75 Z M 10,60 L 15,60 L 15,65 L 10,65 Z" fill="#000" transform="scale(1.2)" />
-                    <path d="M 35,35 H 48 V 48 H 35 Z M 5,35 H 18 V 48 H 5 Z M 35,5 H 48 V 18 H 35 Z" fill="#c5a880" />
-                    <path d="M 28,28 H 38 V 38 H 28 Z M 42,42 H 58 V 58 H 42 Z M 62,62 H 78 V 78 H 62 Z" fill="#000" />
-                    <path d="M 50,50 H 65 V 65 H 50 Z M 70,28 H 80 V 38 H 70 Z M 28,70 H 38 V 80 H 28 Z" fill="#c5a880" />
-                  </svg>
-                  {/* Scan Line Overlay */}
-                  <div style={{ position: 'absolute', left: '12px', right: '12px', height: '2px', background: 'var(--accent-gold)', top: '12px', boxShadow: '0 0 8px var(--accent-gold)', animation: 'radarPing 2s infinite ease-in-out' }}></div>
-                </div>
-
-                <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '24px' }}>
-                  <p>Scan using BHIM, Google Pay, PhonePe, or Paytm</p>
-                  <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '4px' }}>UPI ID: <strong>barbo.pay@axisbank</strong></p>
-                </div>
-
-                {/* Simulation controls */}
-                <div style={{ borderTop: '1px dashed var(--border-light)', paddingTop: '20px', marginTop: '20px' }}>
-                  <span style={{ fontSize: '0.7rem', fontWeight: 600, color: 'var(--text-secondary)', display: 'block', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '12px' }}>
-                    Payment Simulation Triggers
-                  </span>
-                  <div style={{ display: 'flex', gap: '10px' }}>
-                    <button
-                      type="button"
-                      className="btn-danger"
-                      style={{ flex: 1, padding: '10px', fontSize: '0.8rem', justifyContent: 'center' }}
-                      onClick={() => handleConfirmUpiBooking(false)}
-                    >
-                      Simulate Failure
-                    </button>
-                    <button
-                      type="button"
-                      className="gold-glow-btn"
-                      style={{ flex: 1.5, padding: '10px', fontSize: '0.8rem', justifyContent: 'center' }}
-                      onClick={() => handleConfirmUpiBooking(true)}
-                    >
-                      Simulate Success
-                    </button>
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
 
       {/* ==========================================
          SECURE HANDSHAKE OTP VERIFICATION MODAL
