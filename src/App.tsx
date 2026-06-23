@@ -1408,12 +1408,12 @@ export default function App() {
               </div>
             </div>
 
-            {/* For Barbers */}
+            {/* For Salons */}
             <div className="landing-feature-card">
               <div className="landing-feature-icon">
                 <Building size={22} />
               </div>
-              <h3 className="landing-feature-title">For Barbers (Partners)</h3>
+              <h3 className="landing-feature-title">For Salons (Partners)</h3>
               <div className="landing-feature-list" style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                 <div className="landing-feature-item" style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
                   <Sparkles size={16} style={{ color: 'var(--accent-gold)', marginTop: '2px' }} />
