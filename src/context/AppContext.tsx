@@ -11,6 +11,7 @@ export interface Service {
   price: number;
   durationMinutes: number;
   barberId?: string;
+  category?: 'men' | 'women' | 'unisex';
 }
 
 export interface Barber {
@@ -108,8 +109,8 @@ interface AppContextType {
   adminRejectApplication: (id: number, feedback: string) => Promise<{ success: boolean; message: string }>;
   
   // Barber Service Management
-  addBarberService: (barberId: string, serviceData: { name: string; price: number; durationMinutes: number }) => Promise<{ success: boolean; message: string }>;
-  updateBarberService: (barberId: string, serviceId: string, serviceData: { name: string; price: number; durationMinutes: number }) => Promise<{ success: boolean; message: string }>;
+  addBarberService: (barberId: string, serviceData: { name: string; price: number; durationMinutes: number; category?: 'men' | 'women' | 'unisex' }) => Promise<{ success: boolean; message: string }>;
+  updateBarberService: (barberId: string, serviceId: string, serviceData: { name: string; price: number; durationMinutes: number; category?: 'men' | 'women' | 'unisex' }) => Promise<{ success: boolean; message: string }>;
   deleteBarberService: (barberId: string, serviceId: string) => Promise<{ success: boolean; message: string }>;
 }
 
@@ -124,6 +125,7 @@ const INITIAL_SERVICES: Service[] = [
     description: 'Precision scissor and clipper cut with hair wash, conditioning head massage, and blowout styling.',
     price: 250,
     durationMinutes: 30,
+    category: 'unisex'
   },
   {
     id: 's2',
@@ -131,6 +133,7 @@ const INITIAL_SERVICES: Service[] = [
     description: 'Professional beard trimming and alignment with warm lather, hot towels, and rich sandalwood beard oil.',
     price: 120,
     durationMinutes: 20,
+    category: 'men'
   },
   {
     id: 's3',
@@ -138,6 +141,7 @@ const INITIAL_SERVICES: Service[] = [
     description: 'Classic deep-cleansing head massage using premium warm coconut or mahabhringraj herbal oils to relieve stress.',
     price: 150,
     durationMinutes: 20,
+    category: 'unisex'
   },
   {
     id: 's4',
@@ -145,6 +149,7 @@ const INITIAL_SERVICES: Service[] = [
     description: 'Deep exfoliating detanning scrub, warm steam, active charcoal clay pack, and face massage.',
     price: 300,
     durationMinutes: 30,
+    category: 'unisex'
   },
   {
     id: 's5',
@@ -152,15 +157,48 @@ const INITIAL_SERVICES: Service[] = [
     description: 'Smooth gray blending or full natural black/dark brown hair color application.',
     price: 450,
     durationMinutes: 45,
+    category: 'unisex'
   },
+  {
+    id: 's6',
+    name: 'Luxe Hair Spa & Deep Conditioning',
+    description: 'Premium nourishing creambath with steam therapy, relaxing shoulder massage, and hair serum application.',
+    price: 500,
+    durationMinutes: 40,
+    category: 'women'
+  },
+  {
+    id: 's7',
+    name: 'Blowout, Dry & Styling',
+    description: 'Glamorous hair wash, blow dry styling, curls or straight finishes for any occasion.',
+    price: 300,
+    durationMinutes: 25,
+    category: 'women'
+  },
+  {
+    id: 's8',
+    name: 'Radiant De-Tan Facial & Glow Pack',
+    description: 'Rejuvenating skin detanning massage with herbal pack and hydration serums to restore instant glow.',
+    price: 450,
+    durationMinutes: 35,
+    category: 'unisex'
+  },
+  {
+    id: 's9',
+    name: 'Global Hair Coloring & Highlights',
+    description: 'Full head fashion hair color or customized multi-dimensional highlights using professional L\'Oreal products.',
+    price: 850,
+    durationMinutes: 60,
+    category: 'women'
+  }
 ];
 
 const INITIAL_BARBERS: Barber[] = [
   {
     id: 'b1',
-    name: 'Looks Salon',
-    title: 'Premium Professional Grooming',
-    specialty: 'High-End Scissor Cuts & Premium Treatments',
+    name: 'Looks Unisex Salon & Spa',
+    title: 'Premium Professional Styling',
+    specialty: 'High-End Cuts, Styling, Hair Spas & Makeovers',
     rating: 4.9,
     reviewsCount: 310,
     imageUrl: 'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?auto=format&fit=crop&q=80&w=250&h=250',
@@ -180,9 +218,9 @@ const INITIAL_BARBERS: Barber[] = [
   },
   {
     id: 'b2',
-    name: 'Dreamland Salon & Skin Care',
-    title: 'Popular MP Nagar Salon',
-    specialty: 'Textured Fades & Skin Care',
+    name: 'Dreamland Unisex Salon',
+    title: 'Popular MP Nagar Styling Hub',
+    specialty: 'Textured Fades, Hair Spas & Skin Care',
     rating: 4.8,
     reviewsCount: 142,
     imageUrl: 'https://images.unsplash.com/photo-1501196354995-cbb51c65aaea?auto=format&fit=crop&q=80&w=250&h=250',
@@ -202,9 +240,9 @@ const INITIAL_BARBERS: Barber[] = [
   },
   {
     id: 'b3',
-    name: 'Ideal Family Salon',
-    title: 'Family Oriented Care',
-    specialty: 'Classic Family Styling & Treatments',
+    name: 'Ideal Family Salon & Spa',
+    title: 'Family Oriented Styling',
+    specialty: 'Classic Family Cuts, Threading & Spas',
     rating: 4.7,
     reviewsCount: 185,
     imageUrl: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&q=80&w=250&h=250',
@@ -224,9 +262,9 @@ const INITIAL_BARBERS: Barber[] = [
   },
   {
     id: 'b4',
-    name: 'Magic Hands Salon',
-    title: 'Mens & Womens Grooming',
-    specialty: 'Precision Clipper Cuts & Detan',
+    name: 'Magic Hands Unisex Studio',
+    title: 'Mens & Womens Styling Lounge',
+    specialty: 'Precision Cuts, Facials & Highlights',
     rating: 4.5,
     reviewsCount: 95,
     imageUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=250&h=250',
@@ -1444,7 +1482,7 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     }
   };
 
-  const addBarberService = async (barberId: string, serviceData: { name: string; price: number; durationMinutes: number }) => {
+  const addBarberService = async (barberId: string, serviceData: { name: string; price: number; durationMinutes: number; category?: 'men' | 'women' | 'unisex' }) => {
     try {
       const res = await fetch(`${BASE_URL}/barbers/${barberId}/services`, {
         method: 'POST',
@@ -1466,14 +1504,15 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         description: `Premium ${serviceData.name.trim()} service custom tailored for you.`,
         price: Number(serviceData.price),
         durationMinutes: Number(serviceData.durationMinutes),
-        barberId
+        barberId,
+        category: serviceData.category || 'unisex'
       };
       setServices(prev => [...prev, newService]);
       return { success: true, message: 'Service added successfully! (Offline Fallback)' };
     }
   };
 
-  const updateBarberService = async (barberId: string, serviceId: string, serviceData: { name: string; price: number; durationMinutes: number }) => {
+  const updateBarberService = async (barberId: string, serviceId: string, serviceData: { name: string; price: number; durationMinutes: number; category?: 'men' | 'women' | 'unisex' }) => {
     try {
       const res = await fetch(`${BASE_URL}/barbers/${barberId}/services/${serviceId}`, {
         method: 'PUT',
@@ -1487,6 +1526,7 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           name: serviceData.name.trim(),
           price: Number(serviceData.price),
           durationMinutes: Number(serviceData.durationMinutes),
+          category: serviceData.category || 'unisex',
           barberId: barberId
         } : s));
         return { success: true, message: data.message || 'Service updated successfully!' };
@@ -1499,6 +1539,7 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         name: serviceData.name.trim(),
         price: Number(serviceData.price),
         durationMinutes: Number(serviceData.durationMinutes),
+        category: serviceData.category || 'unisex',
         barberId: barberId
       } : s));
       return { success: true, message: 'Service updated successfully! (Offline Fallback)' };

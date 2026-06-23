@@ -352,6 +352,55 @@ export default function App() {
   const [bookingSuccess, setBookingSuccess] = useState(false);
   const [bookingError, setBookingError] = useState('');
 
+  // Gender/Category Filter State for Landing page
+  const [activeGenderFilter, setActiveGenderFilter] = useState<'all' | 'men' | 'women'>('all');
+  const [selectedQuickLink, setSelectedQuickLink] = useState<string | null>(null);
+
+  // Helper to filter barbers based on category and quick-link
+  const isBarberMatchingGender = (barber: Barber, filter: 'all' | 'men' | 'women') => {
+    if (filter === 'all') return true;
+    if (filter === 'women') {
+      const isUnisexName = /unisex|spa|family|women|lady|looks|mirrors/i.test(
+        barber.name + ' ' + barber.specialty + ' ' + barber.title
+      );
+      const hasWomenService = services.some(s => s.barberId === barber.id && s.category === 'women');
+      return isUnisexName || hasWomenService;
+    }
+    return true;
+  };
+
+  // Dynamic copies for rebranding
+  const heroSubtitle = activeGenderFilter === 'men' 
+    ? "Find Bhopal's premier men's salons and grooming studios. Book precision fades, sharp beard trims, and classic head shaves instantly."
+    : activeGenderFilter === 'women'
+    ? "Discover premium women's and unisex styling lounges in Bhopal. Book luxury hair spas, expert blowouts, and advanced skin care treatments."
+    : "Find the finest salons & styling studios in Bhopal, browse verified dynamic menus, and book your appointment in under 30 seconds.";
+
+  const discoverSubtitle = activeGenderFilter === 'men'
+    ? "Explore top-rated grooming spots in Bhopal specializing in classic fades, sharp shaves, and relaxing champi sessions."
+    : activeGenderFilter === 'women'
+    ? "Discover premium unisex salons and styling lounges offering advanced hair spas, professional blowouts, and rejuvenating facials."
+    : "Browse top-rated salons, check styling schedules, and book slots instantly with zero prepayment.";
+
+  const quickLinksData = {
+    all: ['Haircut', 'Beard Trim', 'Hair Spa', 'Blowout', 'Champi', 'Facial'],
+    men: ['Haircut', 'Beard Trim', 'Champi', 'Detan'],
+    women: ['Haircut', 'Hair Spa', 'Blowout', 'Facial']
+  };
+  const activeQuickLinks = quickLinksData[activeGenderFilter];
+
+  const filteredBarbers = barbers.filter(barber => {
+    if (!isBarberMatchingGender(barber, activeGenderFilter)) return false;
+    if (selectedQuickLink) {
+      const barberServices = services.filter(s => s.barberId === barber.id || !s.barberId);
+      return barberServices.some(s => 
+        s.name.toLowerCase().includes(selectedQuickLink.toLowerCase()) || 
+        s.description.toLowerCase().includes(selectedQuickLink.toLowerCase())
+      );
+    }
+    return true;
+  });
+
   // Onboarding Modal States
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [showOnboardingModal, setShowOnboardingModal] = useState(false);
@@ -371,10 +420,11 @@ export default function App() {
   const [onboardingChairsCount, setOnboardingChairsCount] = useState(2);
   const [onboardingOpeningTime, setOnboardingOpeningTime] = useState('09:00');
   const [onboardingClosingTime, setOnboardingClosingTime] = useState('21:00');
-  const [onboardingServices, setOnboardingServices] = useState<{ name: string; price: number; durationMinutes: number }[]>([]);
+  const [onboardingServices, setOnboardingServices] = useState<{ name: string; price: number; durationMinutes: number; category?: 'men' | 'women' | 'unisex' }[]>([]);
   const [newServiceName, setNewServiceName] = useState('');
   const [newServicePrice, setNewServicePrice] = useState('');
   const [newServiceDuration, setNewServiceDuration] = useState('');
+  const [newServiceCategory, setNewServiceCategory] = useState<'men' | 'women' | 'unisex'>('unisex');
   const [submittingOnboarding, setSubmittingOnboarding] = useState(false);
   const [onboardingSuccess, setOnboardingSuccess] = useState(false);
   const [onboardingError, setOnboardingError] = useState('');
@@ -383,10 +433,12 @@ export default function App() {
   const [portalNewServiceName, setPortalNewServiceName] = useState('');
   const [portalNewServicePrice, setPortalNewServicePrice] = useState('');
   const [portalNewServiceDuration, setPortalNewServiceDuration] = useState('');
+  const [portalNewServiceCategory, setPortalNewServiceCategory] = useState<'men' | 'women' | 'unisex'>('unisex');
   const [editingServiceId, setEditingServiceId] = useState<string | null>(null);
   const [editServiceName, setEditServiceName] = useState('');
   const [editServicePrice, setEditServicePrice] = useState('');
   const [editServiceDuration, setEditServiceDuration] = useState('');
+  const [editServiceCategory, setEditServiceCategory] = useState<'men' | 'women' | 'unisex'>('unisex');
 
   // Admin Dashboard States
   const [adminApplications, setAdminApplications] = useState<any[]>([]);
@@ -407,7 +459,7 @@ export default function App() {
   const [adminEditChairsCount, setAdminEditChairsCount] = useState(2);
   const [adminEditOpeningTime, setAdminEditOpeningTime] = useState('09:00');
   const [adminEditClosingTime, setAdminEditClosingTime] = useState('21:00');
-  const [adminEditServices, setAdminEditServices] = useState<{ name: string; price: number; durationMinutes: number }[]>([]);
+  const [adminEditServices, setAdminEditServices] = useState<{ name: string; price: number; durationMinutes: number; category?: 'men' | 'women' | 'unisex' }[]>([]);
 
 
   // Cancellation Modal States
@@ -727,8 +779,16 @@ export default function App() {
     if (!newServiceName.trim()) return;
     const price = Number(newServicePrice) || 100;
     const duration = Number(newServiceDuration) || 20;
-    setOnboardingServices(prev => [...prev, { name: newServiceName.trim(), price, durationMinutes: duration }]);
+    setOnboardingServices(prev => [...prev, { 
+      name: newServiceName.trim(), 
+      price, 
+      durationMinutes: duration, 
+      category: newServiceCategory 
+    }]);
     setNewServiceName('');
+    setNewServicePrice('');
+    setNewServiceDuration('');
+    setNewServiceCategory('unisex');
   };
 
   const handleRemoveOnboardingService = (index: number) => {
@@ -896,8 +956,16 @@ export default function App() {
     if (!newServiceName.trim()) return;
     const price = Number(newServicePrice) || 100;
     const duration = Number(newServiceDuration) || 20;
-    setAdminEditServices(prev => [...prev, { name: newServiceName.trim(), price, durationMinutes: duration }]);
+    setAdminEditServices(prev => [...prev, { 
+      name: newServiceName.trim(), 
+      price, 
+      durationMinutes: duration, 
+      category: newServiceCategory 
+    }]);
     setNewServiceName('');
+    setNewServicePrice('');
+    setNewServiceDuration('');
+    setNewServiceCategory('unisex');
   };
 
   const handleRemoveAdminService = (index: number) => {
@@ -1134,10 +1202,10 @@ export default function App() {
             <Sparkles size={14} /> Bhopal's Premier Grooming Network
           </div>
           <h1 className="landing-title">
-            Grooming, <span>Simplified</span>.<br />Booking, <span>Elevated</span>.
+            Styling, <span>Simplified</span>.<br />Booking, <span>Elevated</span>.
           </h1>
           <p className="landing-subtitle">
-            Find the finest barber shops in Bhopal, browse verified dynamic menus, and book your styling appointment in under 30 seconds.
+            {heroSubtitle}
           </p>
           <div className="landing-hero-actions">
             <a 
@@ -1170,136 +1238,141 @@ export default function App() {
             </div>
             <h2 className="landing-section-title">Discover Premium Salons</h2>
             <p className="landing-section-subtitle">
-              Browse top-rated barbers, check styling schedules, and book slots instantly with zero prepayment.
+              {discoverSubtitle}
             </p>
           </div>
 
+          {/* Segmented Category Filter Tabs */}
+          <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '30px' }}>
+            <div style={{ 
+              display: 'inline-flex', 
+              background: 'var(--bg-secondary)', 
+              padding: '6px', 
+              borderRadius: '30px', 
+              border: '1px solid var(--border-light)',
+              boxShadow: 'var(--shadow-premium)'
+            }}>
+              {[
+                { id: 'all', label: '✨ All Services' },
+                { id: 'men', label: '🧔 Men\'s Grooming' },
+                { id: 'women', label: '👩 Women\'s Styling' }
+              ].map((tab) => {
+                const isActive = activeGenderFilter === tab.id;
+                return (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    onClick={() => {
+                      setActiveGenderFilter(tab.id as any);
+                      setSelectedQuickLink(null);
+                    }}
+                    style={{
+                      padding: '10px 24px',
+                      borderRadius: '24px',
+                      border: 'none',
+                      background: isActive ? 'var(--accent-gold)' : 'transparent',
+                      color: isActive ? '#000000' : 'var(--text-secondary)',
+                      fontWeight: 600,
+                      fontSize: '0.9rem',
+                      cursor: 'pointer',
+                      transition: 'all 0.3s ease',
+                      outline: 'none',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      boxShadow: isActive ? '0 4px 12px rgba(197, 168, 128, 0.3)' : 'none'
+                    }}
+                  >
+                    {tab.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Quick Filter Links */}
+          <div style={{ display: 'flex', justifyContent: 'center', gap: '10px', flexWrap: 'wrap', marginBottom: '40px' }}>
+            <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem', alignSelf: 'center', marginRight: '6px' }}>Quick Filter:</span>
+            {activeQuickLinks.map((link) => {
+              const isSelected = selectedQuickLink === link;
+              return (
+                <button
+                  key={link}
+                  type="button"
+                  onClick={() => setSelectedQuickLink(isSelected ? null : link)}
+                  style={{
+                    padding: '6px 14px',
+                    borderRadius: '20px',
+                    border: '1px solid ' + (isSelected ? 'var(--accent-gold)' : 'var(--border-light)'),
+                    background: isSelected ? 'rgba(197, 168, 128, 0.15)' : 'var(--bg-tertiary)',
+                    color: isSelected ? 'var(--accent-gold)' : 'var(--text-secondary)',
+                    fontSize: '0.8rem',
+                    fontWeight: 500,
+                    cursor: 'pointer',
+                    transition: 'all 0.2s ease',
+                    outline: 'none'
+                  }}
+                >
+                  {link}
+                </button>
+              );
+            })}
+          </div>
+
           <div className="salons-grid">
-            {/* Salon 1 */}
-            <div className="salon-card">
-              <div 
-                className="salon-card-image" 
-                style={{ 
-                  backgroundImage: `linear-gradient(to bottom, transparent, rgba(10,11,14,0.9)), url('https://images.unsplash.com/photo-1503951914875-452162b0f3f1?auto=format&fit=crop&w=600&q=80')` 
-                }}
-              >
-                <div className="salon-card-badge">
-                  <Star size={14} fill="var(--accent-gold)" /> 4.9
-                </div>
+            {filteredBarbers.length === 0 ? (
+              <div style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '40px', color: 'var(--text-muted)' }}>
+                No salons found matching the active filters.
               </div>
-              <div className="salon-card-content">
-                <h3 className="salon-card-title">Royal Barber Shop</h3>
-                <div className="salon-card-meta">
-                  <div className="salon-card-meta-item">
-                    <MapPin size={14} />
-                    <span>MP Nagar Zone II, Bhopal</span>
+            ) : (
+              filteredBarbers.map((barber) => {
+                const barberServices = services.filter(s => s.barberId === barber.id || !s.barberId);
+                const minPrice = barberServices.length > 0 ? Math.min(...barberServices.map(s => s.price)) : 100;
+                
+                return (
+                  <div key={barber.id} className="salon-card">
+                    <div 
+                      className="salon-card-image" 
+                      style={{ 
+                        backgroundImage: `linear-gradient(to bottom, transparent, rgba(10,11,14,0.9)), url('${barber.imageUrl}')` 
+                      }}
+                    >
+                      <div className="salon-card-badge">
+                        <Star size={14} fill="var(--accent-gold)" /> {barber.rating}
+                      </div>
+                    </div>
+                    <div className="salon-card-content">
+                      <h3 className="salon-card-title">{barber.name}</h3>
+                      <div className="salon-card-meta">
+                        <div className="salon-card-meta-item">
+                          <MapPin size={14} />
+                          <span>{barber.location}</span>
+                        </div>
+                        <div className="salon-card-meta-item">
+                          <Clock size={14} />
+                          <span>09:00 AM - 09:00 PM</span>
+                        </div>
+                      </div>
+                      <div className="salon-card-footer">
+                        <div className="salon-card-price">
+                          Haircut Starts At
+                          <span>₹{minPrice}</span>
+                        </div>
+                        <button 
+                          className="gold-glow-btn salon-card-btn"
+                          onClick={() => {
+                            setLoginError('');
+                            setShowLoginModal(true);
+                          }}
+                        >
+                          Book Now
+                        </button>
+                      </div>
+                    </div>
                   </div>
-                  <div className="salon-card-meta-item">
-                    <Clock size={14} />
-                    <span>09:00 AM - 09:00 PM</span>
-                  </div>
-                </div>
-                <div className="salon-card-footer">
-                  <div className="salon-card-price">
-                    Haircut Starts At
-                    <span>₹150</span>
-                  </div>
-                  <button 
-                    className="gold-glow-btn salon-card-btn"
-                    onClick={() => {
-                      setLoginError('');
-                      setShowLoginModal(true);
-                    }}
-                  >
-                    Book Now
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            {/* Salon 2 */}
-            <div className="salon-card">
-              <div 
-                className="salon-card-image" 
-                style={{ 
-                  backgroundImage: `linear-gradient(to bottom, transparent, rgba(10,11,14,0.9)), url('https://images.unsplash.com/photo-1621605815971-fbc98d665033?auto=format&fit=crop&w=600&q=80')` 
-                }}
-              >
-                <div className="salon-card-badge">
-                  <Star size={14} fill="var(--accent-gold)" /> 4.8
-                </div>
-              </div>
-              <div className="salon-card-content">
-                <h3 className="salon-card-title">Ironside Shave Parlor</h3>
-                <div className="salon-card-meta">
-                  <div className="salon-card-meta-item">
-                    <MapPin size={14} />
-                    <span>Arera Colony, Bhopal</span>
-                  </div>
-                  <div className="salon-card-meta-item">
-                    <Clock size={14} />
-                    <span>10:00 AM - 08:00 PM</span>
-                  </div>
-                </div>
-                <div className="salon-card-footer">
-                  <div className="salon-card-price">
-                    Haircut Starts At
-                    <span>₹120</span>
-                  </div>
-                  <button 
-                    className="gold-glow-btn salon-card-btn"
-                    onClick={() => {
-                      setLoginError('');
-                      setShowLoginModal(true);
-                    }}
-                  >
-                    Book Now
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            {/* Salon 3 */}
-            <div className="salon-card">
-              <div 
-                className="salon-card-image" 
-                style={{ 
-                  backgroundImage: `linear-gradient(to bottom, transparent, rgba(10,11,14,0.9)), url('https://images.unsplash.com/photo-1585747860715-2ba37e788b70?auto=format&fit=crop&w=600&q=80')` 
-                }}
-              >
-                <div className="salon-card-badge">
-                  <Star size={14} fill="var(--accent-gold)" /> 4.7
-                </div>
-              </div>
-              <div className="salon-card-content">
-                <h3 className="salon-card-title">Vintage Scissors</h3>
-                <div className="salon-card-meta">
-                  <div className="salon-card-meta-item">
-                    <MapPin size={14} />
-                    <span>Indrapuri, Bhopal</span>
-                  </div>
-                  <div className="salon-card-meta-item">
-                    <Clock size={14} />
-                    <span>09:00 AM - 09:00 PM</span>
-                  </div>
-                </div>
-                <div className="salon-card-footer">
-                  <div className="salon-card-price">
-                    Haircut Starts At
-                    <span>₹100</span>
-                  </div>
-                  <button 
-                    className="gold-glow-btn salon-card-btn"
-                    onClick={() => {
-                      setLoginError('');
-                      setShowLoginModal(true);
-                    }}
-                  >
-                    Book Now
-                  </button>
-                </div>
-              </div>
-            </div>
+                );
+              })
+            )}
           </div>
         </section>
 
@@ -1839,6 +1912,15 @@ export default function App() {
                             onChange={(e) => setNewServiceDuration(e.target.value)}
                             style={{ flex: 1, minWidth: '120px', padding: '10px', background: 'var(--bg-tertiary)', border: '1px solid var(--border-light)', borderRadius: '8px', color: 'var(--text-primary)', outline: 'none', fontSize: '0.88rem' }}
                           />
+                          <select
+                            value={newServiceCategory}
+                            onChange={(e) => setNewServiceCategory(e.target.value as any)}
+                            style={{ flex: 1.2, minWidth: '120px', padding: '10px', background: 'var(--bg-tertiary)', border: '1px solid var(--border-light)', borderRadius: '8px', color: 'var(--text-primary)', outline: 'none', fontSize: '0.88rem' }}
+                          >
+                            <option value="unisex">✨ Unisex</option>
+                            <option value="men">🧔 Men Only</option>
+                            <option value="women">👩 Women Only</option>
+                          </select>
                           <button 
                             type="button" 
                             className="btn-secondary" 
@@ -1867,7 +1949,7 @@ export default function App() {
                               <div>
                                 <strong style={{ fontSize: '0.9rem', color: 'var(--text-primary)' }}>{srv.name}</strong>
                                 <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginLeft: '12px' }}>
-                                  {srv.durationMinutes} minutes
+                                  {srv.durationMinutes} mins | <span style={{ color: 'var(--accent-gold)', textTransform: 'capitalize' }}>{srv.category || 'unisex'}</span>
                                 </span>
                               </div>
                               <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
@@ -2450,12 +2532,60 @@ export default function App() {
 
               {/* Barbers Grid */}
               <div style={{ marginBottom: '50px' }}>
-                <h2 style={{ fontSize: '1.5rem', marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <Scissors size={20} style={{ color: 'var(--accent-gold)' }} />
-                  Premium Salons & Barber Artists
-                </h2>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px', marginBottom: '20px' }}>
+                  <h2 style={{ fontSize: '1.5rem', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <Scissors size={20} style={{ color: 'var(--accent-gold)' }} />
+                    Premium Salons & Barber Artists
+                  </h2>
+                  
+                  {/* Segmented Category Filter Tabs */}
+                  <div style={{ 
+                    display: 'inline-flex', 
+                    background: 'var(--bg-secondary)', 
+                    padding: '4px', 
+                    borderRadius: '30px', 
+                    border: '1px solid var(--border-light)',
+                    boxShadow: 'var(--shadow-premium)'
+                  }}>
+                    {[
+                      { id: 'all', label: '✨ All Services' },
+                      { id: 'men', label: '🧔 Men\'s Grooming' },
+                      { id: 'women', label: '👩 Women\'s Styling' }
+                    ].map((tab) => {
+                      const isActive = activeGenderFilter === tab.id;
+                      return (
+                        <button
+                          key={tab.id}
+                          type="button"
+                          onClick={() => {
+                            setActiveGenderFilter(tab.id as any);
+                          }}
+                          style={{
+                            padding: '8px 16px',
+                            borderRadius: '24px',
+                            border: 'none',
+                            background: isActive ? 'var(--accent-gold)' : 'transparent',
+                            color: isActive ? '#000000' : 'var(--text-secondary)',
+                            fontWeight: 600,
+                            fontSize: '0.85rem',
+                            cursor: 'pointer',
+                            transition: 'all 0.3s ease',
+                            outline: 'none',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '6px',
+                            boxShadow: isActive ? '0 4px 10px rgba(197, 168, 128, 0.25)' : 'none'
+                          }}
+                        >
+                          {tab.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(var(--grid-min-width, 360px), 1fr))', gap: '24px' }}>
-                  {sortedBarbers.map((barber) => (
+                  {sortedBarbers.filter(barber => isBarberMatchingGender(barber, activeGenderFilter)).map((barber) => (
                     <div key={barber.id} className="glass-card gsap-card" style={{ display: 'flex', flexDirection: 'column' }}>
                       
                       {/* Photo & Basic Details */}
@@ -2876,6 +3006,15 @@ export default function App() {
                 onChange={(e) => setPortalNewServiceDuration(e.target.value)}
                 style={{ flex: 1, minWidth: '140px', padding: '10px 14px', background: 'var(--bg-tertiary)', border: '1px solid var(--border-light)', borderRadius: '8px', color: 'var(--text-primary)', outline: 'none', fontSize: '0.88rem' }}
               />
+              <select
+                value={portalNewServiceCategory}
+                onChange={(e) => setPortalNewServiceCategory(e.target.value as any)}
+                style={{ flex: 1.2, minWidth: '130px', padding: '10px 14px', background: 'var(--bg-tertiary)', border: '1px solid var(--border-light)', borderRadius: '8px', color: 'var(--text-primary)', outline: 'none', fontSize: '0.88rem' }}
+              >
+                <option value="unisex">✨ Unisex</option>
+                <option value="men">🧔 Men Only</option>
+                <option value="women">👩 Women Only</option>
+              </select>
               <button 
                 type="button"
                 className="gold-glow-btn"
@@ -2895,12 +3034,13 @@ export default function App() {
                     showToast('Please enter a valid duration in minutes.');
                     return;
                   }
-                  const res = await addBarberService(activeBarber.id, { name: portalNewServiceName.trim(), price, durationMinutes: duration });
+                  const res = await addBarberService(activeBarber.id, { name: portalNewServiceName.trim(), price, durationMinutes: duration, category: portalNewServiceCategory });
                   if (res.success) {
                     showToast(res.message);
                     setPortalNewServiceName('');
                     setPortalNewServicePrice('');
                     setPortalNewServiceDuration('');
+                    setPortalNewServiceCategory('unisex');
                   } else {
                     showToast(res.message);
                   }
@@ -2957,6 +3097,15 @@ export default function App() {
                             placeholder="Mins"
                             style={{ flex: 1, minWidth: '70px', padding: '8px 12px', background: 'var(--bg-tertiary)', border: '1px solid var(--border-light)', borderRadius: '6px', color: 'var(--text-primary)', outline: 'none', fontSize: '0.88rem' }}
                           />
+                          <select
+                            value={editServiceCategory}
+                            onChange={(e) => setEditServiceCategory(e.target.value as any)}
+                            style={{ flex: 1.2, minWidth: '110px', padding: '8px 12px', background: 'var(--bg-tertiary)', border: '1px solid var(--border-light)', borderRadius: '6px', color: 'var(--text-primary)', outline: 'none', fontSize: '0.88rem' }}
+                          >
+                            <option value="unisex">✨ Unisex</option>
+                            <option value="men">🧔 Men Only</option>
+                            <option value="women">👩 Women Only</option>
+                          </select>
                         </div>
                         <div style={{ display: 'flex', gap: '8px' }}>
                           <button 
@@ -2970,7 +3119,7 @@ export default function App() {
                                 showToast('Please fill in all fields correctly.');
                                 return;
                               }
-                              const res = await updateBarberService(activeBarber.id, srv.id, { name: editServiceName.trim(), price, durationMinutes: duration });
+                              const res = await updateBarberService(activeBarber.id, srv.id, { name: editServiceName.trim(), price, durationMinutes: duration, category: editServiceCategory });
                               if (res.success) {
                                 showToast(res.message);
                                 setEditingServiceId(null);
@@ -2998,7 +3147,7 @@ export default function App() {
                           <div>
                             <strong style={{ fontSize: '0.95rem', color: 'var(--text-primary)' }}>{srv.name}</strong>
                             <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginLeft: '12px' }}>
-                              {srv.durationMinutes} mins
+                              {srv.durationMinutes} mins | <span style={{ color: 'var(--accent-gold)', textTransform: 'capitalize' }}>{srv.category || 'unisex'}</span>
                             </span>
                           </div>
                         </div>
@@ -3015,6 +3164,7 @@ export default function App() {
                               setEditServiceName(srv.name);
                               setEditServicePrice(String(srv.price));
                               setEditServiceDuration(String(srv.durationMinutes));
+                              setEditServiceCategory(srv.category || 'unisex');
                             }}
                           >
                             <Edit size={16} />
@@ -3234,7 +3384,7 @@ export default function App() {
                           key={index} 
                           style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--bg-secondary)', padding: '6px 10px', borderRadius: '6px', fontSize: '0.85rem', border: '1px solid var(--border-light)' }}
                         >
-                          <span>{service.name} (₹{service.price} | {service.durationMinutes} min)</span>
+                          <span>{service.name} (₹{service.price} | {service.durationMinutes} min | <span style={{ color: 'var(--accent-gold)', textTransform: 'capitalize' }}>{service.category || 'unisex'}</span>)</span>
                           <button type="button" onClick={() => handleRemoveAdminService(index)} style={{ background: 'none', border: 'none', color: 'var(--status-red)', cursor: 'pointer' }}><Trash size={14} /></button>
                         </div>
                       ))}
@@ -3262,6 +3412,15 @@ export default function App() {
                         onChange={(e) => setNewServiceDuration(e.target.value)}
                         style={{ flex: 1, padding: '6px 8px', background: 'var(--bg-tertiary)', border: '1px solid var(--border-light)', borderRadius: '6px', color: 'var(--text-primary)', fontSize: '0.82rem' }}
                       />
+                      <select
+                        value={newServiceCategory}
+                        onChange={(e) => setNewServiceCategory(e.target.value as any)}
+                        style={{ flex: 1.2, padding: '6px 8px', background: 'var(--bg-tertiary)', border: '1px solid var(--border-light)', borderRadius: '6px', color: 'var(--text-primary)', fontSize: '0.82rem' }}
+                      >
+                        <option value="unisex">✨ Unisex</option>
+                        <option value="men">🧔 Men Only</option>
+                        <option value="women">👩 Women Only</option>
+                      </select>
                       <button type="button" className="btn-secondary" onClick={handleAddAdminService} style={{ padding: '6px 10px', fontSize: '0.82rem' }}><Plus size={14} /></button>
                     </div>
                   </div>
@@ -3490,43 +3649,56 @@ export default function App() {
                   Select Services (Select multiple)
                 </label>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                  {services.map((service) => {
-                    const isChecked = selectedServiceIds.includes(service.id);
-                    return (
-                      <div 
-                        key={service.id} 
-                        onClick={() => handleToggleService(service.id)}
-                        style={{ 
-                          padding: '12px 16px', 
-                          borderRadius: '10px', 
-                          background: isChecked ? 'var(--accent-gold-glow)' : 'var(--bg-tertiary)', 
-                          border: isChecked ? '1px solid var(--accent-gold)' : '1px solid var(--border-light)',
-                          cursor: 'pointer', 
-                          display: 'flex', 
-                          justifyContent: 'space-between', 
-                          alignItems: 'center',
-                          transition: 'all 0.2s ease'
-                        }}
-                      >
-                        <div style={{ paddingRight: '16px' }}>
-                          <h4 style={{ fontSize: '0.95rem', fontWeight: 600, color: isChecked ? 'var(--accent-gold)' : 'var(--text-primary)' }}>
-                            {service.name}
-                          </h4>
-                          <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '2px' }}>
-                            {service.description}
-                          </p>
+                  {services
+                    .filter((service) => {
+                      const belongsToBarber = !service.barberId || (selectedBarber && service.barberId === selectedBarber.id);
+                      if (!belongsToBarber) return false;
+                      
+                      if (activeGenderFilter === 'men') {
+                        return service.category === 'men' || service.category === 'unisex';
+                      }
+                      if (activeGenderFilter === 'women') {
+                        return service.category === 'women' || service.category === 'unisex';
+                      }
+                      return true;
+                    })
+                    .map((service) => {
+                      const isChecked = selectedServiceIds.includes(service.id);
+                      return (
+                        <div 
+                          key={service.id} 
+                          onClick={() => handleToggleService(service.id)}
+                          style={{ 
+                            padding: '12px 16px', 
+                            borderRadius: '10px', 
+                            background: isChecked ? 'var(--accent-gold-glow)' : 'var(--bg-tertiary)', 
+                            border: isChecked ? '1px solid var(--accent-gold)' : '1px solid var(--border-light)',
+                            cursor: 'pointer', 
+                            display: 'flex', 
+                            justifyContent: 'space-between', 
+                            alignItems: 'center',
+                            transition: 'all 0.2s ease'
+                          }}
+                        >
+                          <div style={{ paddingRight: '16px' }}>
+                            <h4 style={{ fontSize: '0.95rem', fontWeight: 600, color: isChecked ? 'var(--accent-gold)' : 'var(--text-primary)' }}>
+                              {service.name}
+                            </h4>
+                            <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '2px' }}>
+                              {service.description}
+                            </p>
+                          </div>
+                          <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                            <span style={{ display: 'block', fontWeight: 700, color: 'var(--text-primary)' }}>
+                              ₹{service.price}
+                            </span>
+                            <span style={{ display: 'block', fontSize: '0.7rem', color: 'var(--text-muted)' }}>
+                              {service.durationMinutes} min
+                            </span>
+                          </div>
                         </div>
-                        <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                          <span style={{ display: 'block', fontWeight: 700, color: 'var(--text-primary)' }}>
-                            ₹{service.price}
-                          </span>
-                          <span style={{ display: 'block', fontSize: '0.7rem', color: 'var(--text-muted)' }}>
-                            {service.durationMinutes} min
-                          </span>
-                        </div>
-                      </div>
-                    );
-                  })}
+                      );
+                    })}
                 </div>
               </div>
 
@@ -4250,6 +4422,15 @@ export default function App() {
                           onChange={(e) => setNewServiceDuration(e.target.value)}
                           style={{ flex: 1, minWidth: '120px', padding: '10px', background: 'var(--bg-tertiary)', border: '1px solid var(--border-light)', borderRadius: '8px', color: 'var(--text-primary)', outline: 'none', fontSize: '0.88rem' }}
                         />
+                        <select
+                          value={newServiceCategory}
+                          onChange={(e) => setNewServiceCategory(e.target.value as any)}
+                          style={{ flex: 1.2, minWidth: '120px', padding: '10px', background: 'var(--bg-tertiary)', border: '1px solid var(--border-light)', borderRadius: '8px', color: 'var(--text-primary)', outline: 'none', fontSize: '0.88rem' }}
+                        >
+                          <option value="unisex">✨ Unisex</option>
+                          <option value="men">🧔 Men Only</option>
+                          <option value="women">👩 Women Only</option>
+                        </select>
                         <button 
                           type="button" 
                           className="btn-secondary" 
@@ -4278,7 +4459,7 @@ export default function App() {
                             <div>
                               <strong style={{ fontSize: '0.9rem', color: 'var(--text-primary)' }}>{srv.name}</strong>
                               <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginLeft: '12px' }}>
-                                {srv.durationMinutes} minutes
+                                {srv.durationMinutes} mins | <span style={{ color: 'var(--accent-gold)', textTransform: 'capitalize' }}>{srv.category || 'unisex'}</span>
                               </span>
                             </div>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>

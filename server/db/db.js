@@ -101,6 +101,36 @@ const runAutoMigrations = async () => {
       )
     `);
 
+    // 5.1 Add services.category column
+    const [serviceCategoryCols] = await pool.query(`
+      SELECT COLUMN_NAME 
+      FROM INFORMATION_SCHEMA.COLUMNS 
+      WHERE TABLE_SCHEMA = DATABASE() 
+        AND TABLE_NAME = 'services' 
+        AND COLUMN_NAME = 'category'
+    `);
+    if (serviceCategoryCols.length === 0) {
+      console.log('➕ Adding column: services.category');
+      await pool.query(`
+        ALTER TABLE services ADD COLUMN category ENUM('men', 'women', 'unisex') DEFAULT 'unisex'
+      `);
+    }
+
+    // 5.2 Add application_services.category column
+    const [appServiceCategoryCols] = await pool.query(`
+      SELECT COLUMN_NAME 
+      FROM INFORMATION_SCHEMA.COLUMNS 
+      WHERE TABLE_SCHEMA = DATABASE() 
+        AND TABLE_NAME = 'application_services' 
+        AND COLUMN_NAME = 'category'
+    `);
+    if (appServiceCategoryCols.length === 0) {
+      console.log('➕ Adding column: application_services.category');
+      await pool.query(`
+        ALTER TABLE application_services ADD COLUMN category ENUM('men', 'women', 'unisex') DEFAULT 'unisex'
+      `);
+    }
+
     // 6. seed admin user
     await pool.query(`
       INSERT INTO users (id, email, password, name, role, barber_id) VALUES 

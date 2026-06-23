@@ -125,7 +125,7 @@ app.post('/api/auth/signup', async (req, res) => {
 // 2. Services List Retriever
 app.get('/api/services', async (req, res) => {
   try {
-    const [rows] = await pool.query('SELECT id, name, description, price, duration_minutes as durationMinutes, barber_id as barberId FROM services');
+    const [rows] = await pool.query('SELECT id, name, description, price, duration_minutes as durationMinutes, barber_id as barberId, category FROM services');
     res.json(rows);
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
@@ -882,24 +882,27 @@ app.patch('/api/barbers/:id/delay', async (req, res) => {
 // 9.1 Barber service management: Add Service
 app.post('/api/barbers/:barberId/services', async (req, res) => {
   const { barberId } = req.params;
-  const { name, price, durationMinutes } = req.body;
+  const { name, price, durationMinutes, category } = req.body;
 
   if (!name || price === undefined || durationMinutes === undefined) {
     return res.status(400).json({ success: false, message: 'Service name, price, and duration are required' });
   }
 
+  const finalCategory = category || 'unisex';
+
   try {
     const serviceId = `s-${barberId}-${Date.now()}`;
     await pool.query(
-      `INSERT INTO services (id, name, description, price, duration_minutes, barber_id) 
-       VALUES (?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO services (id, name, description, price, duration_minutes, barber_id, category) 
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
       [
         serviceId,
         name.trim(),
         `Premium ${name.trim()} service custom tailored for you.`,
         Number(price),
         Number(durationMinutes),
-        barberId
+        barberId,
+        finalCategory
       ]
     );
     res.status(201).json({
@@ -911,7 +914,8 @@ app.post('/api/barbers/:barberId/services', async (req, res) => {
         description: `Premium ${name.trim()} service custom tailored for you.`,
         price: Number(price),
         durationMinutes: Number(durationMinutes),
-        barberId
+        barberId,
+        category: finalCategory
       }
     });
   } catch (err) {
@@ -922,7 +926,7 @@ app.post('/api/barbers/:barberId/services', async (req, res) => {
 // 9.2 Barber service management: Update Service
 app.put('/api/barbers/:barberId/services/:serviceId', async (req, res) => {
   const { barberId, serviceId } = req.params;
-  const { name, price, durationMinutes } = req.body;
+  const { name, price, durationMinutes, category } = req.body;
 
   if (!name || price === undefined || durationMinutes === undefined) {
     return res.status(400).json({ success: false, message: 'Service name, price, and duration are required' });
@@ -931,9 +935,9 @@ app.put('/api/barbers/:barberId/services/:serviceId', async (req, res) => {
   try {
     await pool.query(
       `UPDATE services 
-       SET name = ?, price = ?, duration_minutes = ? 
+       SET name = ?, price = ?, duration_minutes = ?, category = ? 
        WHERE id = ? AND barber_id = ?`,
-      [name.trim(), Number(price), Number(durationMinutes), serviceId, barberId]
+      [name.trim(), Number(price), Number(durationMinutes), category || 'unisex', serviceId, barberId]
     );
     res.json({ success: true, message: 'Service updated successfully!' });
   } catch (err) {
@@ -1066,9 +1070,9 @@ app.post('/api/onboarding/apply', async (req, res) => {
         throw new Error('Invalid service data: name, price, and durationMinutes are required');
       }
       await conn.query(
-        `INSERT INTO application_services (application_id, name, price, duration_minutes) 
-         VALUES (?, ?, ?, ?)`,
-        [applicationId, service.name.trim(), Number(service.price), Number(service.durationMinutes)]
+        `INSERT INTO application_services (application_id, name, price, duration_minutes, category) 
+         VALUES (?, ?, ?, ?, ?)`,
+        [applicationId, service.name.trim(), Number(service.price), Number(service.durationMinutes), service.category || 'unisex']
       );
     }
 
@@ -1099,7 +1103,7 @@ app.get('/api/onboarding/status/:email', async (req, res) => {
 
     const app = apps[0];
     const [services] = await pool.query(
-      'SELECT name, price, duration_minutes as durationMinutes FROM application_services WHERE application_id = ?',
+      'SELECT name, price, duration_minutes as durationMinutes, category FROM application_services WHERE application_id = ?',
       [app.id]
     );
 
@@ -1138,7 +1142,7 @@ app.get('/api/admin/applications', async (req, res) => {
     const formattedApps = await Promise.all(
       apps.map(async (app) => {
         const [services] = await pool.query(
-          'SELECT name, price, duration_minutes as durationMinutes FROM application_services WHERE application_id = ?',
+          'SELECT name, price, duration_minutes as durationMinutes, category FROM application_services WHERE application_id = ?',
           [app.id]
         );
         return {
@@ -1232,9 +1236,9 @@ app.put('/api/admin/applications/:id', async (req, res) => {
         throw new Error('Invalid service data');
       }
       await conn.query(
-        `INSERT INTO application_services (application_id, name, price, duration_minutes) 
-         VALUES (?, ?, ?, ?)`,
-        [id, service.name.trim(), Number(service.price), Number(service.durationMinutes)]
+        `INSERT INTO application_services (application_id, name, price, duration_minutes, category) 
+         VALUES (?, ?, ?, ?, ?)`,
+        [id, service.name.trim(), Number(service.price), Number(service.durationMinutes), service.category || 'unisex']
       );
     }
 
@@ -1304,15 +1308,16 @@ app.post('/api/admin/applications/:id/approve', async (req, res) => {
       const s = appServices[idx];
       const serviceId = `s-${barberId}-${idx}`;
       await conn.query(
-        `INSERT INTO services (id, name, description, price, duration_minutes, barber_id) 
-         VALUES (?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO services (id, name, description, price, duration_minutes, barber_id, category) 
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
         [
           serviceId,
           s.name,
           `Premium ${s.name} service custom tailored for you.`,
           s.price,
           s.duration_minutes,
-          barberId
+          barberId,
+          s.category || 'unisex'
         ]
       );
     }
