@@ -71,15 +71,39 @@ interface NavigateButtonProps {
 
 const NavigateButton: React.FC<NavigateButtonProps> = ({ appointment, barber, hideButton }) => {
   const handleNavigate = () => {
-    if (barber.mapsUrl) {
-      window.open(barber.mapsUrl, '_blank');
+    const mapsLink = barber?.mapsUrl || 
+                     (barber as any)?.maps_url || 
+                     appointment?.mapsUrl || 
+                     (appointment as any)?.maps_url || 
+                     (appointment as any)?.barberMapsUrl;
+
+    if (mapsLink) {
+      window.open(mapsLink, '_blank');
       return;
     }
-    const userLat = appointment.userLat || 23.2495;
-    const userLon = appointment.userLon || 77.4172;
-    const barberLat = appointment.barberLat || barber.lat || 23.2425;
-    const barberLon = appointment.barberLon || barber.lon || 77.4190;
+
+    const userLat = appointment?.userLat || 23.2495;
+    const userLon = appointment?.userLon || 77.4172;
+    const barberLat = appointment?.barberLat || barber?.lat || 23.2425;
+    const barberLon = appointment?.barberLon || barber?.lon || 77.4190;
     
+    // If the coordinates are not the dummy ones, we can route using them
+    if (barberLat && barberLon && (barberLat !== 23.25 || barberLon !== 77.41)) {
+      const routingUrl = `https://www.google.com/maps/dir/?api=1&origin=${userLat},${userLon}&destination=${barberLat},${barberLon}&travelmode=driving`;
+      window.open(routingUrl, '_blank');
+      return;
+    }
+
+    // Fallback: search Google Maps by name and location
+    const name = barber?.name || appointment?.barberName;
+    const loc = barber?.location || appointment?.location;
+    if (name && loc) {
+      const searchUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(name + ' ' + loc)}`;
+      window.open(searchUrl, '_blank');
+      return;
+    }
+
+    // Extreme fallback routing URL
     const routingUrl = `https://www.google.com/maps/dir/?api=1&origin=${userLat},${userLon}&destination=${barberLat},${barberLon}&travelmode=driving`;
     window.open(routingUrl, '_blank');
   };
