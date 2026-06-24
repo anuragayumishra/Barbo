@@ -2,6 +2,8 @@ import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import pool from './db/db.js';
+import http from 'http';
+import https from 'https';
 
 dotenv.config();
 
@@ -43,6 +45,126 @@ const calculateDistance = (lat1, lon1, lat2, lon2) => {
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 
   return Math.round(R * c); // returns meters
+};
+
+const expandUrl = (shortUrl) => {
+  return new Promise((resolve) => {
+    if (!shortUrl || (!shortUrl.includes('maps.app.goo.gl') && !shortUrl.includes('goo.gl/maps'))) {
+      resolve(shortUrl);
+      return;
+    }
+
+    const client = shortUrl.startsWith('https') ? https : http;
+    const requestWithTimeout = (url, depth = 0) => {
+      if (depth > 5) {
+        resolve(url);
+        return;
+      }
+
+      try {
+        const req = client.request(url, { method: 'HEAD' }, (res) => {
+          if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
+            let nextUrl = res.headers.location;
+            if (!nextUrl.startsWith('http')) {
+              nextUrl = new URL(nextUrl, url).href;
+            }
+            requestWithTimeout(nextUrl, depth + 1);
+          } else {
+            resolve(url);
+          }
+        });
+        
+        req.on('error', (err) => {
+          console.error("Error expanding short URL via HEAD, trying GET:", err);
+          client.get(url, (getRes) => {
+            if (getRes.statusCode >= 300 && getRes.statusCode < 400 && getRes.headers.location) {
+              let nextUrl = getRes.headers.location;
+              if (!nextUrl.startsWith('http')) {
+                nextUrl = new URL(nextUrl, url).href;
+              }
+              requestWithTimeout(nextUrl, depth + 1);
+            } else {
+              resolve(url);
+            }
+          }).on('error', (getErr) => {
+            console.error("GET expansion error:", getErr);
+            resolve(url);
+          });
+        });
+
+        req.setTimeout(3000, () => {
+          req.destroy();
+          resolve(url);
+        });
+
+        req.end();
+      } catch (e) {
+        console.error("Exception in expandUrl:", e);
+        resolve(url);
+      }
+    };
+
+    requestWithTimeout(shortUrl);
+  });
+};
+
+const extractCoords = (url) => {
+  let lat = null;
+  let lon = null;
+  
+  // Try matching various formats
+  // 1. !3dLat!4dLon (exact place coordinate in Google Maps URL data parameter)
+  const placeMatch = url.match(/!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)/);
+  if (placeMatch) {
+    lat = parseFloat(placeMatch[1]);
+    lon = parseFloat(placeMatch[2]);
+    return { lat, lon };
+  }
+
+  // 2. @Lat,Lon (viewport or place coordinate)
+  // 3. q=Lat,Lon or query=Lat,Lon or ll=Lat,Lon
+  const coordMatch = url.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/) ||
+                     url.match(/[?&]q=(-?\d+\.\d+),(-?\d+\.\d+)/) ||
+                     url.match(/query=(-?\d+\.\d+),(-?\d+\.\d+)/) ||
+                     url.match(/ll=(-?\d+\.\d+),(-?\d+\.\d+)/);
+  if (coordMatch) {
+    lat = parseFloat(coordMatch[1]);
+    lon = parseFloat(coordMatch[2]);
+  }
+  return { lat, lon };
+};
+
+
+const resolveMapsUrlAndCoords = async (mapsUrl, currentLat, currentLon) => {
+  let resolvedUrl = mapsUrl ? mapsUrl.trim() : '';
+  let resolvedLat = currentLat;
+  let resolvedLon = currentLon;
+
+  if (resolvedUrl && (resolvedUrl.includes('maps.app.goo.gl') || resolvedUrl.includes('goo.gl/maps'))) {
+    const expanded = await expandUrl(resolvedUrl);
+    if (expanded && expanded !== resolvedUrl) {
+      resolvedUrl = expanded;
+      const coords = extractCoords(expanded);
+      if (coords.lat !== null && coords.lon !== null) {
+        resolvedLat = coords.lat;
+        resolvedLon = coords.lon;
+      }
+    }
+  }
+
+  if (resolvedLat === undefined || resolvedLat === null || isNaN(resolvedLat) || resolvedLat === 23.2500) {
+    const coords = extractCoords(resolvedUrl);
+    if (coords.lat !== null && coords.lon !== null) {
+      resolvedLat = coords.lat;
+      resolvedLon = coords.lon;
+    }
+  }
+
+  return {
+    mapsUrl: resolvedUrl,
+    lat: resolvedLat || 23.2500,
+    lon: resolvedLon || 77.4100
+  };
 };
 
 // ==========================================
@@ -906,6 +1028,8 @@ app.put('/api/barbers/:id/settings', async (req, res) => {
   }
 
   try {
+    const resolved = await resolveMapsUrlAndCoords(mapsUrl, lat, lon);
+
     const [result] = await pool.query(
       `UPDATE barbers 
        SET opening_time = ?, closing_time = ?, working_days = ?, maps_url = ?, lat = ?, lon = ? 
@@ -914,9 +1038,9 @@ app.put('/api/barbers/:id/settings', async (req, res) => {
         openingTime,
         closingTime,
         workingDays,
-        mapsUrl.trim(),
-        Number(lat || 23.2500),
-        Number(lon || 77.4100),
+        resolved.mapsUrl,
+        Number(resolved.lat),
+        Number(resolved.lon),
         id
       ]
     );
@@ -1072,6 +1196,8 @@ app.post('/api/onboarding/apply', async (req, res) => {
   const conn = await pool.getConnection();
 
   try {
+    const resolved = await resolveMapsUrlAndCoords(mapsUrl, lat, lon);
+
     await conn.beginTransaction();
 
     // Check if there is an existing application
@@ -1095,8 +1221,8 @@ app.post('/api/onboarding/apply', async (req, res) => {
              status = 'pending', rejection_feedback = NULL 
          WHERE id = ?`,
         [
-          shopName.trim(), ownerName.trim(), contactNumber.trim(), location.trim(), mapsUrl.trim(),
-          Number(lat || 23.2500), Number(lon || 77.4100), Number(chairsCount), openingTime, closingTime,
+          shopName.trim(), ownerName.trim(), contactNumber.trim(), location.trim(), resolved.mapsUrl,
+          Number(resolved.lat), Number(resolved.lon), Number(chairsCount), openingTime, closingTime,
           workingDays || 'Mon,Tue,Wed,Thu,Fri,Sat,Sun',
           applicationId
         ]
@@ -1111,8 +1237,8 @@ app.post('/api/onboarding/apply', async (req, res) => {
          (shop_name, owner_name, email, contact_number, location, maps_url, lat, lon, chairs_count, opening_time, closing_time, working_days, status) 
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending')`,
         [
-          shopName.trim(), ownerName.trim(), trimmedEmail, contactNumber.trim(), location.trim(), mapsUrl.trim(),
-          Number(lat || 23.2500), Number(lon || 77.4100), Number(chairsCount), openingTime, closingTime,
+          shopName.trim(), ownerName.trim(), trimmedEmail, contactNumber.trim(), location.trim(), resolved.mapsUrl,
+          Number(resolved.lat), Number(resolved.lon), Number(chairsCount), openingTime, closingTime,
           workingDays || 'Mon,Tue,Wed,Thu,Fri,Sat,Sun'
         ]
       );
@@ -1259,6 +1385,8 @@ app.put('/api/admin/applications/:id', async (req, res) => {
   const conn = await pool.getConnection();
 
   try {
+    const resolved = await resolveMapsUrlAndCoords(mapsUrl, lat, lon);
+
     await conn.beginTransaction();
 
     // Verify application exists and is not approved
@@ -1279,8 +1407,8 @@ app.put('/api/admin/applications/:id', async (req, res) => {
            lat = ?, lon = ?, chairs_count = ?, opening_time = ?, closing_time = ?, working_days = ? 
        WHERE id = ?`,
       [
-        shopName.trim(), ownerName.trim(), contactNumber.trim(), location.trim(), mapsUrl.trim(),
-        Number(lat || 23.2500), Number(lon || 77.4100), Number(chairsCount), openingTime, closingTime,
+        shopName.trim(), ownerName.trim(), contactNumber.trim(), location.trim(), resolved.mapsUrl,
+        Number(resolved.lat), Number(resolved.lon), Number(chairsCount), openingTime, closingTime,
         workingDays || 'Mon,Tue,Wed,Thu,Fri,Sat,Sun',
         id
       ]

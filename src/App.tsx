@@ -85,12 +85,18 @@ const NavigateButton: React.FC<NavigateButtonProps> = ({ appointment, barber, hi
           dest = decodeURIComponent(match[1]);
         }
       } else {
-        // Try to parse @lat,lon from Google Maps URL
-        const coordMatch = dest.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/) ||
-                           dest.match(/query=(-?\d+\.\d+),(-?\d+\.\d+)/) ||
-                           dest.match(/ll=(-?\d+\.\d+),(-?\d+\.\d+)/);
-        if (coordMatch) {
-          dest = `${coordMatch[1]},${coordMatch[2]}`;
+        // Try to parse coordinates in various formats
+        const placeMatch = dest.match(/!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)/);
+        if (placeMatch) {
+          dest = `${placeMatch[1]},${placeMatch[2]}`;
+        } else {
+          const coordMatch = dest.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/) ||
+                             dest.match(/[?&]q=(-?\d+\.\d+),(-?\d+\.\d+)/) ||
+                             dest.match(/query=(-?\d+\.\d+),(-?\d+\.\d+)/) ||
+                             dest.match(/ll=(-?\d+\.\d+),(-?\d+\.\d+)/);
+          if (coordMatch) {
+            dest = `${coordMatch[1]},${coordMatch[2]}`;
+          }
         }
       }
 
@@ -819,12 +825,19 @@ export default function App() {
     // Parse coordinates from Maps URL
     let parsedLat = 23.2500;
     let parsedLon = 77.4100;
-    const coordMatch = onboardingMapsUrl.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/) ||
-                       onboardingMapsUrl.match(/query=(-?\d+\.\d+),(-?\d+\.\d+)/) ||
-                       onboardingMapsUrl.match(/ll=(-?\d+\.\d+),(-?\d+\.\d+)/);
-    if (coordMatch) {
-      parsedLat = parseFloat(coordMatch[1]);
-      parsedLon = parseFloat(coordMatch[2]);
+    const placeMatch = onboardingMapsUrl.match(/!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)/);
+    if (placeMatch) {
+      parsedLat = parseFloat(placeMatch[1]);
+      parsedLon = parseFloat(placeMatch[2]);
+    } else {
+      const coordMatch = onboardingMapsUrl.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/) ||
+                         onboardingMapsUrl.match(/[?&]q=(-?\d+\.\d+),(-?\d+\.\d+)/) ||
+                         onboardingMapsUrl.match(/query=(-?\d+\.\d+),(-?\d+\.\d+)/) ||
+                         onboardingMapsUrl.match(/ll=(-?\d+\.\d+),(-?\d+\.\d+)/);
+      if (coordMatch) {
+        parsedLat = parseFloat(coordMatch[1]);
+        parsedLon = parseFloat(coordMatch[2]);
+      }
     }
 
     const appData = {
@@ -1004,12 +1017,19 @@ export default function App() {
     // Parse coordinates from Maps URL
     let parsedLat = 23.2500;
     let parsedLon = 77.4100;
-    const coordMatch = adminEditMapsUrl.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/) ||
-                       adminEditMapsUrl.match(/query=(-?\d+\.\d+),(-?\d+\.\d+)/) ||
-                       adminEditMapsUrl.match(/ll=(-?\d+\.\d+),(-?\d+\.\d+)/);
-    if (coordMatch) {
-      parsedLat = parseFloat(coordMatch[1]);
-      parsedLon = parseFloat(coordMatch[2]);
+    const placeMatch = adminEditMapsUrl.match(/!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)/);
+    if (placeMatch) {
+      parsedLat = parseFloat(placeMatch[1]);
+      parsedLon = parseFloat(placeMatch[2]);
+    } else {
+      const coordMatch = adminEditMapsUrl.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/) ||
+                         adminEditMapsUrl.match(/[?&]q=(-?\d+\.\d+),(-?\d+\.\d+)/) ||
+                         adminEditMapsUrl.match(/query=(-?\d+\.\d+),(-?\d+\.\d+)/) ||
+                         adminEditMapsUrl.match(/ll=(-?\d+\.\d+),(-?\d+\.\d+)/);
+      if (coordMatch) {
+        parsedLat = parseFloat(coordMatch[1]);
+        parsedLon = parseFloat(coordMatch[2]);
+      }
     }
 
     const appData = {
@@ -3354,12 +3374,19 @@ export default function App() {
                       // Parse coordinates
                       let parsedLat = activeBarber.lat;
                       let parsedLon = activeBarber.lon;
-                      const coordMatch = settingsMapsUrl.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/) ||
-                                         settingsMapsUrl.match(/query=(-?\d+\.\d+),(-?\d+\.\d+)/) ||
-                                         settingsMapsUrl.match(/ll=(-?\d+\.\d+),(-?\d+\.\d+)/);
-                      if (coordMatch) {
-                        parsedLat = parseFloat(coordMatch[1]);
-                        parsedLon = parseFloat(coordMatch[2]);
+                      const placeMatch = settingsMapsUrl.match(/!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)/);
+                      if (placeMatch) {
+                        parsedLat = parseFloat(placeMatch[1]);
+                        parsedLon = parseFloat(placeMatch[2]);
+                      } else {
+                        const coordMatch = settingsMapsUrl.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/) ||
+                                           settingsMapsUrl.match(/[?&]q=(-?\d+\.\d+),(-?\d+\.\d+)/) ||
+                                           settingsMapsUrl.match(/query=(-?\d+\.\d+),(-?\d+\.\d+)/) ||
+                                           settingsMapsUrl.match(/ll=(-?\d+\.\d+),(-?\d+\.\d+)/);
+                        if (coordMatch) {
+                          parsedLat = parseFloat(coordMatch[1]);
+                          parsedLon = parseFloat(coordMatch[2]);
+                        }
                       }
 
                       const res = await updateBarberSettings(activeBarber.id, {
