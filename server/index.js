@@ -178,7 +178,10 @@ app.get('/api/barbers', async (req, res) => {
           leadStylist: barber.lead_stylist,
           lat: Number(barber.lat),
           lon: Number(barber.lon),
-          chairsCount: barber.chairs_count
+          chairsCount: barber.chairs_count,
+          openingTime: barber.opening_time || '09:00',
+          closingTime: barber.closing_time || '21:00',
+          workingDays: barber.working_days || 'Mon,Tue,Wed,Thu,Fri,Sat,Sun'
         };
       })
     );
@@ -879,6 +882,55 @@ app.patch('/api/barbers/:id/delay', async (req, res) => {
   }
 });
 
+// 9.05 Update Barber Settings (operating hours, days off, and map URL)
+app.put('/api/barbers/:id/settings', async (req, res) => {
+  const { id } = req.params;
+  const { openingTime, closingTime, workingDays, mapsUrl, lat, lon } = req.body;
+
+  if (!openingTime || !closingTime || !workingDays || !mapsUrl) {
+    return res.status(400).json({ success: false, message: 'openingTime, closingTime, workingDays, and mapsUrl are required' });
+  }
+
+  // Validate Google Maps URL format
+  const isGoogleMaps = (url) => {
+    const trimmed = url.trim();
+    if (!trimmed.startsWith('http://') && !trimmed.startsWith('https://')) {
+      return false;
+    }
+    return /google\..*\/maps/i.test(trimmed) || 
+           /maps\.app\.goo\.gl/i.test(trimmed) || 
+           /goo\.gl\/maps/i.test(trimmed);
+  };
+  if (!isGoogleMaps(mapsUrl)) {
+    return res.status(400).json({ success: false, message: 'Invalid Google Maps URL link' });
+  }
+
+  try {
+    const [result] = await pool.query(
+      `UPDATE barbers 
+       SET opening_time = ?, closing_time = ?, working_days = ?, maps_url = ?, lat = ?, lon = ? 
+       WHERE id = ?`,
+      [
+        openingTime,
+        closingTime,
+        workingDays,
+        mapsUrl.trim(),
+        Number(lat || 23.2500),
+        Number(lon || 77.4100),
+        id
+      ]
+    );
+
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ success: false, message: 'Barber profile not found' });
+    }
+
+    res.json({ success: true, message: 'Shop settings updated successfully!' });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
 // 9.1 Barber service management: Add Service
 app.post('/api/barbers/:barberId/services', async (req, res) => {
   const { barberId } = req.params;
@@ -978,6 +1030,7 @@ app.post('/api/onboarding/apply', async (req, res) => {
     chairsCount,
     openingTime,
     closingTime,
+    workingDays,
     services
   } = req.body;
 
@@ -1038,12 +1091,13 @@ app.post('/api/onboarding/apply', async (req, res) => {
       await conn.query(
         `UPDATE barber_applications 
          SET shop_name = ?, owner_name = ?, contact_number = ?, location = ?, maps_url = ?, 
-             lat = ?, lon = ?, chairs_count = ?, opening_time = ?, closing_time = ?, 
+             lat = ?, lon = ?, chairs_count = ?, opening_time = ?, closing_time = ?, working_days = ?,
              status = 'pending', rejection_feedback = NULL 
          WHERE id = ?`,
         [
           shopName.trim(), ownerName.trim(), contactNumber.trim(), location.trim(), mapsUrl.trim(),
           Number(lat || 23.2500), Number(lon || 77.4100), Number(chairsCount), openingTime, closingTime,
+          workingDays || 'Mon,Tue,Wed,Thu,Fri,Sat,Sun',
           applicationId
         ]
       );
@@ -1054,11 +1108,12 @@ app.post('/api/onboarding/apply', async (req, res) => {
       // Create new application
       const [insertResult] = await conn.query(
         `INSERT INTO barber_applications 
-         (shop_name, owner_name, email, contact_number, location, maps_url, lat, lon, chairs_count, opening_time, closing_time, status) 
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending')`,
+         (shop_name, owner_name, email, contact_number, location, maps_url, lat, lon, chairs_count, opening_time, closing_time, working_days, status) 
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending')`,
         [
           shopName.trim(), ownerName.trim(), trimmedEmail, contactNumber.trim(), location.trim(), mapsUrl.trim(),
-          Number(lat || 23.2500), Number(lon || 77.4100), Number(chairsCount), openingTime, closingTime
+          Number(lat || 23.2500), Number(lon || 77.4100), Number(chairsCount), openingTime, closingTime,
+          workingDays || 'Mon,Tue,Wed,Thu,Fri,Sat,Sun'
         ]
       );
       applicationId = insertResult.insertId;
@@ -1122,6 +1177,7 @@ app.get('/api/onboarding/status/:email', async (req, res) => {
         chairsCount: app.chairs_count,
         openingTime: app.opening_time,
         closingTime: app.closing_time,
+        workingDays: app.working_days,
         status: app.status,
         rejectionFeedback: app.rejection_feedback,
         createdAt: app.created_at,
@@ -1158,6 +1214,7 @@ app.get('/api/admin/applications', async (req, res) => {
           chairsCount: app.chairs_count,
           openingTime: app.opening_time,
           closingTime: app.closing_time,
+          workingDays: app.working_days,
           status: app.status,
           rejectionFeedback: app.rejection_feedback,
           createdAt: app.created_at,
@@ -1187,6 +1244,7 @@ app.put('/api/admin/applications/:id', async (req, res) => {
     chairsCount,
     openingTime,
     closingTime,
+    workingDays,
     services
   } = req.body;
 
@@ -1218,11 +1276,12 @@ app.put('/api/admin/applications/:id', async (req, res) => {
     await conn.query(
       `UPDATE barber_applications 
        SET shop_name = ?, owner_name = ?, contact_number = ?, location = ?, maps_url = ?, 
-           lat = ?, lon = ?, chairs_count = ?, opening_time = ?, closing_time = ? 
+           lat = ?, lon = ?, chairs_count = ?, opening_time = ?, closing_time = ?, working_days = ? 
        WHERE id = ?`,
       [
         shopName.trim(), ownerName.trim(), contactNumber.trim(), location.trim(), mapsUrl.trim(),
         Number(lat || 23.2500), Number(lon || 77.4100), Number(chairsCount), openingTime, closingTime,
+        workingDays || 'Mon,Tue,Wed,Thu,Fri,Sat,Sun',
         id
       ]
     );
@@ -1282,8 +1341,8 @@ app.post('/api/admin/applications/:id/approve', async (req, res) => {
     // 3. Create Barber profile
     await conn.query(
       `INSERT INTO barbers 
-       (id, name, title, specialty, rating, reviews_count, image_url, delay_status, location, maps_url, distance_meters, lead_stylist, lat, lon, chairs_count) 
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       (id, name, title, specialty, rating, reviews_count, image_url, delay_status, location, maps_url, distance_meters, lead_stylist, lat, lon, chairs_count, opening_time, closing_time, working_days) 
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         barberId,
         app.shop_name,
@@ -1299,7 +1358,10 @@ app.post('/api/admin/applications/:id/approve', async (req, res) => {
         app.owner_name,
         app.lat,
         app.lon,
-        app.chairs_count
+        app.chairs_count,
+        app.opening_time || '09:00',
+        app.closing_time || '21:00',
+        app.working_days || 'Mon,Tue,Wed,Thu,Fri,Sat,Sun'
       ]
     );
 

@@ -47,6 +47,19 @@ const LOCAL_BHOPAL_COORDS: Record<string, { lat: number; lon: number; display: s
   lalghati: { lat: 23.2790, lon: 77.3630, display: 'Lalghati, Bhopal' }
 };
 
+const formatTime = (timeStr?: string) => {
+  if (!timeStr) return '';
+  const parts = timeStr.split(':');
+  if (parts.length < 2) return timeStr;
+  const hour = parseInt(parts[0], 10);
+  const min = parseInt(parts[1], 10);
+  if (isNaN(hour) || isNaN(min)) return timeStr;
+  const ampm = hour >= 12 ? 'PM' : 'AM';
+  const displayHour = hour % 12 === 0 ? 12 : hour % 12;
+  const minutes = String(min).padStart(2, '0');
+  return `${String(displayHour).padStart(2, '0')}:${minutes} ${ampm}`;
+};
+
 // ==========================================
 // GOOGLE MAPS NAVIGATION REDIRECT
 // ==========================================
@@ -58,6 +71,10 @@ interface NavigateButtonProps {
 
 const NavigateButton: React.FC<NavigateButtonProps> = ({ appointment, barber, hideButton }) => {
   const handleNavigate = () => {
+    if (barber.mapsUrl) {
+      window.open(barber.mapsUrl, '_blank');
+      return;
+    }
     const userLat = appointment.userLat || 23.2495;
     const userLon = appointment.userLon || 77.4172;
     const barberLat = appointment.barberLat || barber.lat || 23.2425;
@@ -216,7 +233,8 @@ export default function App() {
     adminRejectApplication,
     addBarberService,
     updateBarberService,
-    deleteBarberService
+    deleteBarberService,
+    updateBarberSettings
   } = useApp();
 
   const getLocalDateString = (d: Date = new Date()) => {
@@ -340,6 +358,15 @@ export default function App() {
   const activeBarberId = (currentUser && currentUser.role === 'barber' && currentUser.barberId) ? currentUser.barberId : 'b1';
   const activeBarber = barbers.find((b) => b.id === activeBarberId) || barbers[0];
 
+  useEffect(() => {
+    if (currentUser && currentUser.role === 'barber' && activeBarber) {
+      setSettingsOpeningTime(activeBarber.openingTime || '09:00');
+      setSettingsClosingTime(activeBarber.closingTime || '21:00');
+      setSettingsWorkingDays(activeBarber.workingDays ? activeBarber.workingDays.split(',') : ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']);
+      setSettingsMapsUrl(activeBarber.mapsUrl || '');
+    }
+  }, [activeBarberId, activeBarber, currentUser]);
+
 
   // Booking Modal States
   const [isBookingOpen, setIsBookingOpen] = useState(false);
@@ -420,6 +447,7 @@ export default function App() {
   const [onboardingChairsCount, setOnboardingChairsCount] = useState(2);
   const [onboardingOpeningTime, setOnboardingOpeningTime] = useState('09:00');
   const [onboardingClosingTime, setOnboardingClosingTime] = useState('21:00');
+  const [onboardingWorkingDays, setOnboardingWorkingDays] = useState<string[]>(['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']);
   const [onboardingServices, setOnboardingServices] = useState<{ name: string; price: number; durationMinutes: number; category?: 'men' | 'women' | 'unisex' }[]>([]);
   const [newServiceName, setNewServiceName] = useState('');
   const [newServicePrice, setNewServicePrice] = useState('');
@@ -429,11 +457,16 @@ export default function App() {
   const [onboardingSuccess, setOnboardingSuccess] = useState(false);
   const [onboardingError, setOnboardingError] = useState('');
 
-  // Barber Portal Service Management States
+  // Barber Portal Service Management & settings States
   const [portalNewServiceName, setPortalNewServiceName] = useState('');
   const [portalNewServicePrice, setPortalNewServicePrice] = useState('');
   const [portalNewServiceDuration, setPortalNewServiceDuration] = useState('');
   const [portalNewServiceCategory, setPortalNewServiceCategory] = useState<'men' | 'women' | 'unisex'>('unisex');
+  const [settingsOpeningTime, setSettingsOpeningTime] = useState('');
+  const [settingsClosingTime, setSettingsClosingTime] = useState('');
+  const [settingsWorkingDays, setSettingsWorkingDays] = useState<string[]>([]);
+  const [settingsMapsUrl, setSettingsMapsUrl] = useState('');
+  const [isSavingSettings, setIsSavingSettings] = useState(false);
   const [editingServiceId, setEditingServiceId] = useState<string | null>(null);
   const [editServiceName, setEditServiceName] = useState('');
   const [editServicePrice, setEditServicePrice] = useState('');
@@ -459,6 +492,7 @@ export default function App() {
   const [adminEditChairsCount, setAdminEditChairsCount] = useState(2);
   const [adminEditOpeningTime, setAdminEditOpeningTime] = useState('09:00');
   const [adminEditClosingTime, setAdminEditClosingTime] = useState('21:00');
+  const [adminEditWorkingDays, setAdminEditWorkingDays] = useState<string[]>(['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']);
   const [adminEditServices, setAdminEditServices] = useState<{ name: string; price: number; durationMinutes: number; category?: 'men' | 'women' | 'unisex' }[]>([]);
 
 
@@ -753,7 +787,8 @@ export default function App() {
       lon: parsedLon,
       chairsCount: onboardingChairsCount,
       openingTime: onboardingOpeningTime,
-      closingTime: onboardingClosingTime
+      closingTime: onboardingClosingTime,
+      workingDays: onboardingWorkingDays.join(',')
     };
 
     const res = await submitApplication(appData, onboardingServices);
@@ -768,6 +803,7 @@ export default function App() {
       setOnboardingContactNumber('');
       setOnboardingLocation('');
       setOnboardingMapsUrl('');
+      setOnboardingWorkingDays(['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']);
       setOnboardingServices([]);
     } else {
       setOnboardingError(res.message);
@@ -805,6 +841,7 @@ export default function App() {
     setOnboardingChairsCount(app.chairsCount);
     setOnboardingOpeningTime(app.openingTime);
     setOnboardingClosingTime(app.closingTime);
+    setOnboardingWorkingDays(app.workingDays ? app.workingDays.split(',') : ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']);
     setOnboardingServices(app.services || []);
     setOnboardingTab('apply');
     setCheckedApplication(null);
@@ -869,6 +906,7 @@ export default function App() {
     setAdminEditChairsCount(app.chairsCount);
     setAdminEditOpeningTime(app.openingTime);
     setAdminEditClosingTime(app.closingTime);
+    setAdminEditWorkingDays(app.workingDays ? app.workingDays.split(',') : ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']);
     setAdminEditServices(app.services || []);
     setIsAdminEditing(true);
   };
@@ -933,7 +971,8 @@ export default function App() {
       lon: parsedLon,
       chairsCount: adminEditChairsCount,
       openingTime: adminEditOpeningTime,
-      closingTime: adminEditClosingTime
+      closingTime: adminEditClosingTime,
+      workingDays: adminEditWorkingDays.join(',')
     };
 
     const res = await adminEditApplication(selectedAdminApp.id, appData, adminEditServices);
@@ -1019,12 +1058,47 @@ export default function App() {
     .filter((s) => selectedServiceIds.includes(s.id))
     .reduce((sum, s) => sum + s.price, 0);
 
-  // Default Time Slots from 9:00 to 18:00
-  const TIME_SLOTS = [
-    '09:00', '09:30', '10:00', '10:30', '11:00', '11:30', '12:00', '12:30',
-    '13:00', '13:30', '14:00', '14:30', '15:00', '15:30', '16:00', '16:30',
-    '17:00', '17:30'
-  ];
+  // Default Time Slots fallback
+  const getDayOfWeekAbbreviation = (dateStr: string) => {
+    if (!dateStr) return '';
+    const [year, month, day] = dateStr.split('-').map(Number);
+    const dateObj = new Date(year, month - 1, day);
+    const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    return days[dateObj.getDay()];
+  };
+
+  const getDynamicTimeSlots = (barber: Barber | null) => {
+    const opening = barber?.openingTime || '09:00';
+    const closing = barber?.closingTime || '21:00';
+    
+    const [opH, opM] = opening.split(':').map(Number);
+    const [clH, clM] = closing.split(':').map(Number);
+    
+    const slots: string[] = [];
+    let currentMin = opH * 60 + (opM || 0);
+    const endMin = clH * 60 + (clM || 0);
+    
+    // Safety check in case values are malformed
+    if (isNaN(currentMin) || isNaN(endMin) || currentMin >= endMin) {
+      return [
+        '09:00', '09:30', '10:00', '10:30', '11:00', '11:30', '12:00', '12:30',
+        '13:00', '13:30', '14:00', '14:30', '15:00', '15:30', '16:00', '16:30',
+        '17:00', '17:30'
+      ];
+    }
+    
+    const maxStartMin = endMin - totalDuration;
+    
+    while (currentMin <= maxStartMin) {
+      const h = Math.floor(currentMin / 60);
+      const m = currentMin % 60;
+      const hStr = String(h).padStart(2, '0');
+      const mStr = String(m).padStart(2, '0');
+      slots.push(`${hStr}:${mStr}`);
+      currentMin += 30;
+    }
+    return slots;
+  };
 
   const handleOpenBooking = (barber: Barber) => {
     setSelectedBarber(barber);
@@ -1073,6 +1147,7 @@ export default function App() {
         ? prev.filter((id) => id !== serviceId)
         : [...prev, serviceId]
     );
+    setSelectedTimeSlot('');
   };
 
   const handleConfirmBooking = async (e: React.FormEvent) => {
@@ -1343,14 +1418,36 @@ export default function App() {
                     </div>
                     <div className="salon-card-content">
                       <h3 className="salon-card-title">{barber.name}</h3>
-                      <div className="salon-card-meta">
+                       <div className="salon-card-meta">
                         <div className="salon-card-meta-item">
                           <MapPin size={14} />
-                          <span>{barber.location}</span>
+                          {barber.mapsUrl ? (
+                            <a 
+                              href={barber.mapsUrl} 
+                              target="_blank" 
+                              rel="noopener noreferrer" 
+                              style={{ 
+                                color: 'inherit', 
+                                textDecoration: 'none',
+                                transition: 'color 0.2s ease'
+                              }}
+                              onMouseEnter={(e) => e.currentTarget.style.color = 'var(--accent-gold)'}
+                              onMouseLeave={(e) => e.currentTarget.style.color = 'inherit'}
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              {barber.location}
+                            </a>
+                          ) : (
+                            <span>{barber.location}</span>
+                          )}
                         </div>
                         <div className="salon-card-meta-item">
                           <Clock size={14} />
-                          <span>09:00 AM - 09:00 PM</span>
+                          <span>
+                            {barber.openingTime && barber.closingTime 
+                              ? `${formatTime(barber.openingTime)} - ${formatTime(barber.closingTime)}` 
+                              : '09:00 AM - 09:00 PM'}
+                          </span>
                         </div>
                       </div>
                       <div className="salon-card-footer">
@@ -1878,6 +1975,63 @@ export default function App() {
                             onChange={(e) => setOnboardingClosingTime(e.target.value)}
                             style={{ width: '100%', padding: '12px', background: 'var(--bg-tertiary)', border: '1px solid var(--border-light)', borderRadius: '10px', color: 'var(--text-primary)', outline: 'none' }}
                           />
+                        </div>
+                      </div>
+
+                      {/* Weekly Operating Days Selection */}
+                      <div style={{ marginTop: '16px', marginBottom: '16px' }}>
+                        <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '8px' }}>
+                          Weekly Operating Days <span style={{ color: 'var(--status-red)' }}>*</span>
+                        </label>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px' }}>
+                          {[
+                            { day: 'Mon', label: 'Monday' },
+                            { day: 'Tue', label: 'Tuesday' },
+                            { day: 'Wed', label: 'Wednesday' },
+                            { day: 'Thu', label: 'Thursday' },
+                            { day: 'Fri', label: 'Friday' },
+                            { day: 'Sat', label: 'Saturday' },
+                            { day: 'Sun', label: 'Sunday' },
+                          ].map((d) => {
+                            const isChecked = onboardingWorkingDays.includes(d.day);
+                            return (
+                              <label 
+                                key={d.day} 
+                                style={{ 
+                                  display: 'inline-flex', 
+                                  alignItems: 'center', 
+                                  gap: '6px', 
+                                  padding: '8px 12px', 
+                                  background: isChecked ? 'rgba(212, 175, 55, 0.08)' : 'var(--bg-tertiary)', 
+                                  border: isChecked ? '1px solid var(--accent-gold)' : '1px solid var(--border-light)', 
+                                  borderRadius: '8px', 
+                                  cursor: 'pointer',
+                                  fontSize: '0.85rem',
+                                  color: isChecked ? 'var(--accent-gold)' : 'var(--text-secondary)',
+                                  userSelect: 'none',
+                                  transition: 'all 0.2s ease'
+                                }}
+                              >
+                                <input 
+                                  type="checkbox"
+                                  checked={isChecked}
+                                  onChange={() => {
+                                    if (isChecked) {
+                                      if (onboardingWorkingDays.length > 1) {
+                                        setOnboardingWorkingDays(onboardingWorkingDays.filter(day => day !== d.day));
+                                      } else {
+                                        showToast('At least one operating day must be selected.');
+                                      }
+                                    } else {
+                                      setOnboardingWorkingDays([...onboardingWorkingDays, d.day]);
+                                    }
+                                  }}
+                                  style={{ display: 'none' }}
+                                />
+                                {d.label}
+                              </label>
+                            );
+                          })}
                         </div>
                       </div>
 
@@ -2613,7 +2767,25 @@ export default function App() {
                         <p><strong>Specialty:</strong> {barber.specialty}</p>
                         <p style={{ display: 'flex', alignItems: 'flex-start', gap: '6px', fontSize: '0.82rem', marginTop: '4px' }}>
                           <MapPin size={12} style={{ color: 'var(--accent-gold)', flexShrink: 0, marginTop: '3px' }} />
-                          <span>{barber.location}</span>
+                          {barber.mapsUrl ? (
+                            <a 
+                              href={barber.mapsUrl} 
+                              target="_blank" 
+                              rel="noopener noreferrer" 
+                              style={{ 
+                                color: 'var(--text-secondary)', 
+                                textDecoration: 'none',
+                                transition: 'color 0.2s ease'
+                              }}
+                              onMouseEnter={(e) => e.currentTarget.style.color = 'var(--accent-gold)'}
+                              onMouseLeave={(e) => e.currentTarget.style.color = 'var(--text-secondary)'}
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              {barber.location}
+                            </a>
+                          ) : (
+                            <span>{barber.location}</span>
+                          )}
                         </p>
                       </div>
 
@@ -2925,48 +3097,216 @@ export default function App() {
               )}
             </div>
 
-            {/* Barber Status Delay Panel */}
-            <div className="glass-card gsap-card barber-status-panel" style={{ position: 'sticky', top: '90px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
-                <AlertCircle size={20} style={{ color: 'var(--accent-gold)' }} />
-                <h2 style={{ fontSize: '1.3rem' }}>Live Delay Console</h2>
-              </div>
-              <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginBottom: '20px' }}>
-                Are you running behind schedule? Adjust your status below. Your changes will propagate in real-time to alert all upcoming customer appointments.
-              </p>
+            {/* Right Column (Delay Console & Shop settings) */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '24px', position: 'sticky', top: '90px', alignSelf: 'start', width: '100%' }} className="barber-right-column">
+              
+              {/* Barber Status Delay Panel */}
+              <div className="glass-card gsap-card barber-status-panel">
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
+                  <AlertCircle size={20} style={{ color: 'var(--accent-gold)' }} />
+                  <h2 style={{ fontSize: '1.3rem' }}>Live Delay Console</h2>
+                </div>
+                <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginBottom: '20px' }}>
+                  Are you running behind schedule? Adjust your status below. Your changes will propagate in real-time to alert all upcoming customer appointments.
+                </p>
 
-              {/* Status Display badge */}
-              <div style={{ background: 'var(--bg-secondary)', padding: '16px', borderRadius: '12px', textAlign: 'center', marginBottom: '24px', border: '1px solid var(--border-light)' }}>
-                <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', display: 'block' }}>YOUR CURRENT LIVE STATUS</span>
-                <strong style={{ fontSize: '1.25rem', color: activeBarber.delayStatus === 'On Time' ? 'var(--status-green)' : 'var(--status-amber)' }}>
-                  ● {activeBarber.delayStatus}
-                </strong>
+                {/* Status Display badge */}
+                <div style={{ background: 'var(--bg-secondary)', padding: '16px', borderRadius: '12px', textAlign: 'center', marginBottom: '24px', border: '1px solid var(--border-light)' }}>
+                  <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', display: 'block' }}>YOUR CURRENT LIVE STATUS</span>
+                  <strong style={{ fontSize: '1.25rem', color: activeBarber.delayStatus === 'On Time' ? 'var(--status-green)' : 'var(--status-amber)' }}>
+                    ● {activeBarber.delayStatus}
+                  </strong>
+                </div>
+
+                {/* Status Selector Controls */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  {[
+                    { label: 'On Time', style: 'btn-secondary', val: 'On Time' },
+                    { label: '+10 Minutes Late', style: 'btn-secondary', val: '+10 Min' },
+                    { label: '+20 Minutes Late', style: 'btn-secondary', val: '+20 Min' },
+                    { label: 'Severe Delay', style: 'btn-secondary', val: 'Delayed' },
+                  ].map((btn, idx) => {
+                    const isActive = activeBarber.delayStatus === btn.val;
+                    return (
+                      <button 
+                        key={idx}
+                        onClick={() => {
+                          updateBarberDelay(activeBarber.id, btn.val);
+                          showToast(`Status updated: ${btn.label}`);
+                        }}
+                        className={isActive ? 'gold-glow-btn' : 'btn-secondary'}
+                        style={{ justifyContent: 'center', padding: '10px 0' }}
+                      >
+                        {btn.label} {isActive && '✓'}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
 
-              {/* Status Selector Controls */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                {[
-                  { label: 'On Time', style: 'btn-secondary', val: 'On Time' },
-                  { label: '+10 Minutes Late', style: 'btn-secondary', val: '+10 Min' },
-                  { label: '+20 Minutes Late', style: 'btn-secondary', val: '+20 Min' },
-                  { label: 'Severe Delay', style: 'btn-secondary', val: 'Delayed' },
-                ].map((btn, idx) => {
-                  const isActive = activeBarber.delayStatus === btn.val;
-                  return (
-                    <button 
-                      key={idx}
-                      onClick={() => {
-                        updateBarberDelay(activeBarber.id, btn.val);
-                        showToast(`Status updated: ${btn.label}`);
-                      }}
-                      className={isActive ? 'gold-glow-btn' : 'btn-secondary'}
-                      style={{ justifyContent: 'center', padding: '10px 0' }}
-                    >
-                      {btn.label} {isActive && '✓'}
-                    </button>
-                  );
-                })}
+              {/* Shop settings & Operating Hours Panel */}
+              <div className="glass-card gsap-card barber-settings-panel">
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
+                  <Settings size={20} style={{ color: 'var(--accent-gold)' }} />
+                  <h2 style={{ fontSize: '1.3rem' }}>Shop settings & Hours</h2>
+                </div>
+                <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginBottom: '20px' }}>
+                  Change operating timings, weekly schedule off days, or update your Google Maps shop location link.
+                </p>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                  {/* Hours Grid */}
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.78rem', color: 'var(--text-secondary)', marginBottom: '6px' }}>Opening Time</label>
+                      <input 
+                        type="time" 
+                        value={settingsOpeningTime}
+                        onChange={(e) => setSettingsOpeningTime(e.target.value)}
+                        style={{ width: '100%', padding: '10px', background: 'var(--bg-tertiary)', border: '1px solid var(--border-light)', borderRadius: '8px', color: 'var(--text-primary)', outline: 'none', fontSize: '0.88rem' }}
+                      />
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.78rem', color: 'var(--text-secondary)', marginBottom: '6px' }}>Closing Time</label>
+                      <input 
+                        type="time" 
+                        value={settingsClosingTime}
+                        onChange={(e) => setSettingsClosingTime(e.target.value)}
+                        style={{ width: '100%', padding: '10px', background: 'var(--bg-tertiary)', border: '1px solid var(--border-light)', borderRadius: '8px', color: 'var(--text-primary)', outline: 'none', fontSize: '0.88rem' }}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Weekly Days selection */}
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.78rem', color: 'var(--text-secondary)', marginBottom: '6px' }}>Weekly Operating Days</label>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                      {[
+                        { day: 'Mon', label: 'Mon' },
+                        { day: 'Tue', label: 'Tue' },
+                        { day: 'Wed', label: 'Wed' },
+                        { day: 'Thu', label: 'Thu' },
+                        { day: 'Fri', label: 'Fri' },
+                        { day: 'Sat', label: 'Sat' },
+                        { day: 'Sun', label: 'Sun' },
+                      ].map((d) => {
+                        const isChecked = settingsWorkingDays.includes(d.day);
+                        return (
+                          <label 
+                            key={d.day} 
+                            style={{ 
+                              display: 'inline-flex', 
+                              alignItems: 'center', 
+                              gap: '4px', 
+                              padding: '6px 10px', 
+                              background: isChecked ? 'rgba(212, 175, 55, 0.08)' : 'var(--bg-tertiary)', 
+                              border: isChecked ? '1px solid var(--accent-gold)' : '1px solid var(--border-light)', 
+                              borderRadius: '6px', 
+                              cursor: 'pointer',
+                              fontSize: '0.8rem',
+                              color: isChecked ? 'var(--accent-gold)' : 'var(--text-secondary)',
+                              userSelect: 'none',
+                              transition: 'all 0.2s ease'
+                            }}
+                          >
+                            <input 
+                              type="checkbox"
+                              checked={isChecked}
+                              onChange={() => {
+                                if (isChecked) {
+                                  if (settingsWorkingDays.length > 1) {
+                                    setSettingsWorkingDays(settingsWorkingDays.filter(day => day !== d.day));
+                                  } else {
+                                    showToast('At least one operating day must be selected.');
+                                  }
+                                } else {
+                                  setSettingsWorkingDays([...settingsWorkingDays, d.day]);
+                                }
+                              }}
+                              style={{ display: 'none' }}
+                            />
+                            {d.label}
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Maps URL */}
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.78rem', color: 'var(--text-secondary)', marginBottom: '6px' }}>Google Maps URL</label>
+                    <input 
+                      type="text" 
+                      value={settingsMapsUrl}
+                      onChange={(e) => setSettingsMapsUrl(e.target.value)}
+                      placeholder="Paste your new shop map link"
+                      style={{ width: '100%', padding: '10px', background: 'var(--bg-tertiary)', border: '1px solid var(--border-light)', borderRadius: '8px', color: 'var(--text-primary)', outline: 'none', fontSize: '0.85rem' }}
+                    />
+                  </div>
+
+                  {/* Save button */}
+                  <button 
+                    type="button" 
+                    className="gold-glow-btn"
+                    style={{ justifyContent: 'center', padding: '12px 0', width: '100%', marginTop: '8px' }}
+                    disabled={isSavingSettings}
+                    onClick={async () => {
+                      if (!settingsOpeningTime || !settingsClosingTime || !settingsMapsUrl.trim()) {
+                        showToast('Please fill in all shop settings.');
+                        return;
+                      }
+                      
+                      // Validate Google Maps Link format
+                      const isGoogleMaps = (url: string) => {
+                        const trimmed = url.trim();
+                        if (!trimmed.startsWith('http://') && !trimmed.startsWith('https://')) {
+                          return false;
+                        }
+                        return /google\..*\/maps/i.test(trimmed) || 
+                               /maps\.app\.goo\.gl/i.test(trimmed) || 
+                               /goo\.gl\/maps/i.test(trimmed);
+                      };
+                      if (!isGoogleMaps(settingsMapsUrl)) {
+                        showToast('Please enter a valid Google Maps link.');
+                        return;
+                      }
+
+                      setIsSavingSettings(true);
+                      
+                      // Parse coordinates
+                      let parsedLat = activeBarber.lat;
+                      let parsedLon = activeBarber.lon;
+                      const coordMatch = settingsMapsUrl.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/) ||
+                                         settingsMapsUrl.match(/query=(-?\d+\.\d+),(-?\d+\.\d+)/) ||
+                                         settingsMapsUrl.match(/ll=(-?\d+\.\d+),(-?\d+\.\d+)/);
+                      if (coordMatch) {
+                        parsedLat = parseFloat(coordMatch[1]);
+                        parsedLon = parseFloat(coordMatch[2]);
+                      }
+
+                      const res = await updateBarberSettings(activeBarber.id, {
+                        openingTime: settingsOpeningTime,
+                        closingTime: settingsClosingTime,
+                        workingDays: settingsWorkingDays.join(','),
+                        mapsUrl: settingsMapsUrl.trim(),
+                        lat: parsedLat,
+                        lon: parsedLon
+                      });
+
+                      setIsSavingSettings(false);
+
+                      if (res.success) {
+                        showToast('Settings saved successfully!');
+                      } else {
+                        showToast(res.message || 'Failed to save settings.');
+                      }
+                    }}
+                  >
+                    {isSavingSettings ? 'Saving Settings...' : 'Save Settings'}
+                  </button>
+                </div>
               </div>
+
             </div>
 
           </div>
@@ -3373,6 +3713,60 @@ export default function App() {
                         style={{ width: '100%', padding: '8px 10px', background: 'var(--bg-tertiary)', border: '1px solid var(--border-light)', borderRadius: '6px', color: 'var(--text-primary)', outline: 'none' }}
                       />
                     </div>
+
+                    <div style={{ gridColumn: 'span 2', marginTop: '6px' }}>
+                      <label style={{ display: 'block', fontSize: '0.78rem', color: 'var(--text-secondary)', marginBottom: '4px' }}>Weekly Operating Days</label>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                        {[
+                          { day: 'Mon', label: 'Mon' },
+                          { day: 'Tue', label: 'Tue' },
+                          { day: 'Wed', label: 'Wed' },
+                          { day: 'Thu', label: 'Thu' },
+                          { day: 'Fri', label: 'Fri' },
+                          { day: 'Sat', label: 'Sat' },
+                          { day: 'Sun', label: 'Sun' },
+                        ].map((d) => {
+                          const isChecked = adminEditWorkingDays.includes(d.day);
+                          return (
+                            <label 
+                              key={d.day} 
+                              style={{ 
+                                display: 'inline-flex', 
+                                alignItems: 'center', 
+                                gap: '4px', 
+                                padding: '6px 10px', 
+                                background: isChecked ? 'rgba(212, 175, 55, 0.08)' : 'var(--bg-tertiary)', 
+                                border: isChecked ? '1px solid var(--accent-gold)' : '1px solid var(--border-light)', 
+                                borderRadius: '6px', 
+                                cursor: 'pointer',
+                                fontSize: '0.8rem',
+                                color: isChecked ? 'var(--accent-gold)' : 'var(--text-secondary)',
+                                userSelect: 'none',
+                                transition: 'all 0.2s ease'
+                              }}
+                            >
+                              <input 
+                                type="checkbox"
+                                checked={isChecked}
+                                onChange={() => {
+                                  if (isChecked) {
+                                    if (adminEditWorkingDays.length > 1) {
+                                      setAdminEditWorkingDays(adminEditWorkingDays.filter(day => day !== d.day));
+                                    } else {
+                                      showToast('At least one operating day must be selected.');
+                                    }
+                                  } else {
+                                    setAdminEditWorkingDays([...adminEditWorkingDays, d.day]);
+                                  }
+                                }}
+                                style={{ display: 'none' }}
+                              />
+                              {d.label}
+                            </label>
+                          );
+                        })}
+                      </div>
+                    </div>
                   </div>
 
                   {/* Services Edit list */}
@@ -3627,7 +4021,10 @@ export default function App() {
                   type="date"
                   value={selectedDate}
                   min={getLocalDateString()}
-                  onChange={(e) => setSelectedDate(e.target.value)}
+                  onChange={(e) => {
+                    setSelectedDate(e.target.value);
+                    setSelectedTimeSlot('');
+                  }}
                   disabled={isTimeSelectionDisabled}
                   style={{ 
                     width: '100%', 
@@ -3703,101 +4100,158 @@ export default function App() {
               </div>
 
               {/* Time slot picker */}
-              {selectedServiceIds.length > 0 && (
-                <div style={{ marginBottom: '24px' }}>
-                  <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '8px' }}>
-                    Available Time Slots (Calculated for {totalDuration} mins slot) {isTimeSelectionDisabled && ' (Locked - within 30 mins of appointment)'}
-                  </label>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'var(--slot-grid-cols, repeat(4, 1fr))', gap: '8px' }} className="time-slot-grid">
-                    {TIME_SLOTS.map((slot) => {
-                      // Check double booking dynamic block
-                      const [slotH, slotM] = slot.split(':').map(Number);
-                      const slotStart = slotH * 60 + slotM;
-                      const slotEnd = slotStart + totalDuration;
+              {selectedServiceIds.length > 0 && selectedBarber && (() => {
+                const dayAbbrev = getDayOfWeekAbbreviation(selectedDate);
+                const workingDays = selectedBarber.workingDays || 'Mon,Tue,Wed,Thu,Fri,Sat,Sun';
+                const workingDaysArray = workingDays.split(',').map(d => d.trim());
+                const isClosed = !workingDaysArray.includes(dayAbbrev);
 
-                      const capacity = selectedBarber.chairsCount || 2;
-                      let isBooked = false;
+                if (isClosed) {
+                  const dayNames: Record<string, string> = {
+                    'Mon': 'Monday', 'Tue': 'Tuesday', 'Wed': 'Wednesday',
+                    'Thu': 'Thursday', 'Fri': 'Friday', 'Sat': 'Saturday', 'Sun': 'Sunday'
+                  };
+                  const fullDayName = dayNames[dayAbbrev] || dayAbbrev;
+                  return (
+                    <div style={{ 
+                      background: 'rgba(239, 68, 68, 0.08)', 
+                      color: 'var(--status-red)', 
+                      border: '1px solid rgba(239, 68, 68, 0.15)', 
+                      padding: '16px', 
+                      borderRadius: '12px', 
+                      marginBottom: '24px', 
+                      display: 'flex', 
+                      alignItems: 'center', 
+                      gap: '12px' 
+                    }}>
+                      <AlertTriangle size={20} style={{ color: 'var(--status-red)', flexShrink: 0 }} />
+                      <div>
+                        <strong style={{ display: 'block', fontSize: '0.9rem', color: 'var(--status-red)' }}>Salon Closed</strong>
+                        <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>This salon is closed on {fullDayName}s. Please select another date.</span>
+                      </div>
+                    </div>
+                  );
+                }
 
-                      for (let t = slotStart; t < slotEnd; t++) {
-                        let activeOverlaps = 0;
-                        for (const app of appointments) {
-                          if (app.barberId !== selectedBarber.id || app.date !== selectedDate || app.status === 'cancelled' || app.status === 'completed') continue;
-                          const [appSH, appSM] = app.startTime.split(':').map(Number);
-                          const [appEH, appEM] = app.endTime.split(':').map(Number);
-                          const appStart = appSH * 60 + appSM;
-                          const appEnd = appEH * 60 + appEM;
+                const slots = getDynamicTimeSlots(selectedBarber);
+                if (slots.length === 0) {
+                  return (
+                    <div style={{ 
+                      background: 'rgba(245, 158, 11, 0.08)', 
+                      color: 'var(--status-amber)', 
+                      border: '1px solid rgba(245, 158, 11, 0.15)', 
+                      padding: '16px', 
+                      borderRadius: '12px', 
+                      marginBottom: '24px', 
+                      display: 'flex', 
+                      alignItems: 'center', 
+                      gap: '12px' 
+                    }}>
+                      <AlertCircle size={20} style={{ color: 'var(--status-amber)', flexShrink: 0 }} />
+                      <div>
+                        <strong style={{ display: 'block', fontSize: '0.9rem', color: 'var(--status-amber)' }}>No Slots Available</strong>
+                        <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>The selected services exceed the salon's remaining operating hours.</span>
+                      </div>
+                    </div>
+                  );
+                }
 
-                          if (t >= appStart && t < appEnd) {
-                            activeOverlaps++;
+                return (
+                  <div style={{ marginBottom: '24px' }}>
+                    <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '8px' }}>
+                      Available Time Slots (Calculated for {totalDuration} mins slot) {isTimeSelectionDisabled && ' (Locked - within 30 mins of appointment)'}
+                    </label>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'var(--slot-grid-cols, repeat(4, 1fr))', gap: '8px' }} className="time-slot-grid">
+                      {slots.map((slot) => {
+                        // Check double booking dynamic block
+                        const [slotH, slotM] = slot.split(':').map(Number);
+                        const slotStart = slotH * 60 + slotM;
+                        const slotEnd = slotStart + totalDuration;
+
+                        const capacity = selectedBarber.chairsCount || 2;
+                        let isBooked = false;
+
+                        for (let t = slotStart; t < slotEnd; t++) {
+                          let activeOverlaps = 0;
+                          for (const app of appointments) {
+                            if (app.barberId !== selectedBarber.id || app.date !== selectedDate || app.status === 'cancelled' || app.status === 'completed') continue;
+                            const [appSH, appSM] = app.startTime.split(':').map(Number);
+                            const [appEH, appEM] = app.endTime.split(':').map(Number);
+                            const appStart = appSH * 60 + appSM;
+                            const appEnd = appEH * 60 + appEM;
+
+                            if (t >= appStart && t < appEnd) {
+                              activeOverlaps++;
+                            }
+                          }
+                          if (activeOverlaps >= capacity) {
+                            isBooked = true;
+                            break;
                           }
                         }
-                        if (activeOverlaps >= capacity) {
-                          isBooked = true;
-                          break;
+
+                        // Check if slot is too soon or in the past (if date is today, must be at least 30 mins in the future)
+                        let isTooSoon = false;
+                        const localDate = new Date();
+                        const y = localDate.getFullYear();
+                        const m = String(localDate.getMonth() + 1).padStart(2, '0');
+                        const d = String(localDate.getDate()).padStart(2, '0');
+                        const todayFormatted = `${y}-${m}-${d}`;
+
+                        if (selectedDate === todayFormatted) {
+                          const [h, min] = slot.split(':').map(Number);
+                          const slotTime = new Date(y, localDate.getMonth(), localDate.getDate(), h, min, 0);
+                          if (slotTime.getTime() - localDate.getTime() < 30 * 60 * 1000) {
+                            isTooSoon = true;
+                          }
                         }
-                      }
 
-                      // Check if slot is too soon or in the past (if date is today, must be at least 30 mins in the future)
-                      let isTooSoon = false;
-                      const localDate = new Date();
-                      const y = localDate.getFullYear();
-                      const m = String(localDate.getMonth() + 1).padStart(2, '0');
-                      const d = String(localDate.getDate()).padStart(2, '0');
-                      const todayFormatted = `${y}-${m}-${d}`;
+                        const isSelected = selectedTimeSlot === slot;
+                        const isDisabled = isBooked || isTimeSelectionDisabled || isTooSoon;
 
-                      if (selectedDate === todayFormatted) {
-                        const [h, min] = slot.split(':').map(Number);
-                        const slotTime = new Date(y, localDate.getMonth(), localDate.getDate(), h, min, 0);
-                        if (slotTime.getTime() - localDate.getTime() < 30 * 60 * 1000) {
-                          isTooSoon = true;
-                        }
-                      }
+                        const tooltipText = isTimeSelectionDisabled 
+                          ? "Rescheduling is not allowed within 30 minutes of booking start" 
+                          : isTooSoon 
+                            ? "New bookings must be scheduled at least 30 minutes in advance" 
+                            : isBooked 
+                              ? "Slot fully booked" 
+                              : undefined;
 
-                      const isSelected = selectedTimeSlot === slot;
-                      const isDisabled = isBooked || isTimeSelectionDisabled || isTooSoon;
-
-                      const tooltipText = isTimeSelectionDisabled 
-                        ? "Rescheduling is not allowed within 30 minutes of booking start" 
-                        : isTooSoon 
-                          ? "New bookings must be scheduled at least 30 minutes in advance" 
-                          : isBooked 
-                            ? "Slot fully booked" 
-                            : undefined;
-
-                      return (
-                        <span 
-                          key={slot} 
-                          title={tooltipText} 
-                          style={{ display: 'inline-block', width: '100%', cursor: isDisabled ? 'not-allowed' : 'default' }}
-                        >
-                          <button
-                            type="button"
-                            disabled={isDisabled}
-                            onClick={() => setSelectedTimeSlot(slot)}
-                            style={{
-                              width: '100%',
-                              padding: '10px 4px',
-                              borderRadius: '8px',
-                              border: isSelected ? '1px solid var(--accent-gold)' : '1px solid var(--border-light)',
-                              background: isSelected ? 'var(--accent-gold)' : isDisabled ? 'transparent' : 'var(--bg-tertiary)',
-                              color: isSelected ? 'var(--bg-primary)' : isDisabled ? 'var(--text-muted)' : 'var(--text-primary)',
-                              fontSize: '0.8rem',
-                              fontWeight: 600,
-                              cursor: isDisabled ? 'not-allowed' : 'pointer',
-                              textDecoration: isBooked ? 'line-through' : 'none',
-                              opacity: isBooked ? 0.35 : isDisabled ? 0.6 : 1,
-                              transition: 'all 0.2s ease',
-                              pointerEvents: isDisabled ? 'none' : 'auto' // Prevents the button from swallowing hover events in some browsers
-                            }}
+                        return (
+                          <span 
+                            key={slot} 
+                            title={tooltipText} 
+                            style={{ display: 'inline-block', width: '100%', cursor: isDisabled ? 'not-allowed' : 'default' }}
                           >
-                            {slot}
-                          </button>
-                        </span>
-                      );
-                    })}
+                            <button
+                              type="button"
+                              disabled={isDisabled}
+                              onClick={() => setSelectedTimeSlot(slot)}
+                              style={{
+                                width: '100%',
+                                padding: '10px 4px',
+                                borderRadius: '8px',
+                                border: isSelected ? '1px solid var(--accent-gold)' : '1px solid var(--border-light)',
+                                background: isSelected ? 'var(--accent-gold)' : isDisabled ? 'transparent' : 'var(--bg-tertiary)',
+                                color: isSelected ? 'var(--bg-primary)' : isDisabled ? 'var(--text-muted)' : 'var(--text-primary)',
+                                fontSize: '0.8rem',
+                                fontWeight: 600,
+                                cursor: isDisabled ? 'not-allowed' : 'pointer',
+                                textDecoration: isBooked ? 'line-through' : 'none',
+                                opacity: isBooked ? 0.35 : isDisabled ? 0.6 : 1,
+                                transition: 'all 0.2s ease',
+                                pointerEvents: isDisabled ? 'none' : 'auto'
+                              }}
+                            >
+                              {slot}
+                            </button>
+                          </span>
+                        );
+                      })}
+                    </div>
                   </div>
-                </div>
-              )}
+                );
+              })()}
 
 
 
@@ -4388,6 +4842,63 @@ export default function App() {
                           onChange={(e) => setOnboardingClosingTime(e.target.value)}
                           style={{ width: '100%', padding: '12px', background: 'var(--bg-tertiary)', border: '1px solid var(--border-light)', borderRadius: '10px', color: 'var(--text-primary)', outline: 'none' }}
                         />
+                      </div>
+                    </div>
+
+                    {/* Weekly Operating Days Selection */}
+                    <div style={{ marginTop: '16px', marginBottom: '16px' }}>
+                      <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '8px' }}>
+                        Weekly Operating Days <span style={{ color: 'var(--status-red)' }}>*</span>
+                      </label>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px' }}>
+                        {[
+                          { day: 'Mon', label: 'Monday' },
+                          { day: 'Tue', label: 'Tuesday' },
+                          { day: 'Wed', label: 'Wednesday' },
+                          { day: 'Thu', label: 'Thursday' },
+                          { day: 'Fri', label: 'Friday' },
+                          { day: 'Sat', label: 'Saturday' },
+                          { day: 'Sun', label: 'Sunday' },
+                        ].map((d) => {
+                          const isChecked = onboardingWorkingDays.includes(d.day);
+                          return (
+                            <label 
+                              key={d.day} 
+                              style={{ 
+                                display: 'inline-flex', 
+                                alignItems: 'center', 
+                                gap: '6px', 
+                                padding: '8px 12px', 
+                                background: isChecked ? 'rgba(212, 175, 55, 0.08)' : 'var(--bg-tertiary)', 
+                                border: isChecked ? '1px solid var(--accent-gold)' : '1px solid var(--border-light)', 
+                                borderRadius: '8px', 
+                                cursor: 'pointer',
+                                fontSize: '0.85rem',
+                                color: isChecked ? 'var(--accent-gold)' : 'var(--text-secondary)',
+                                userSelect: 'none',
+                                transition: 'all 0.2s ease'
+                              }}
+                            >
+                              <input 
+                                type="checkbox"
+                                checked={isChecked}
+                                onChange={() => {
+                                  if (isChecked) {
+                                    if (onboardingWorkingDays.length > 1) {
+                                      setOnboardingWorkingDays(onboardingWorkingDays.filter(day => day !== d.day));
+                                    } else {
+                                      showToast('At least one operating day must be selected.');
+                                    }
+                                  } else {
+                                    setOnboardingWorkingDays([...onboardingWorkingDays, d.day]);
+                                  }
+                                }}
+                                style={{ display: 'none' }}
+                              />
+                              {d.label}
+                            </label>
+                          );
+                        })}
                       </div>
                     </div>
 

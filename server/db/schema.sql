@@ -39,7 +39,10 @@ CREATE TABLE IF NOT EXISTS barbers (
   lead_stylist VARCHAR(100) NOT NULL,
   lat DECIMAL(9,6) NOT NULL,
   lon DECIMAL(9,6) NOT NULL,
-  chairs_count INT DEFAULT 2
+  chairs_count INT DEFAULT 2,
+  opening_time VARCHAR(10) DEFAULT '09:00',
+  closing_time VARCHAR(10) DEFAULT '21:00',
+  working_days VARCHAR(255) DEFAULT 'Mon,Tue,Wed,Thu,Fri,Sat,Sun'
 );
 
 -- 4. Barber Portfolio Gallery Table
@@ -183,6 +186,7 @@ CREATE TABLE IF NOT EXISTS barber_applications (
   chairs_count INT NOT NULL,
   opening_time VARCHAR(10) NOT NULL,
   closing_time VARCHAR(10) NOT NULL,
+  working_days VARCHAR(255) DEFAULT 'Mon,Tue,Wed,Thu,Fri,Sat,Sun',
   status ENUM('pending', 'approved', 'rejected') NOT NULL DEFAULT 'pending',
   rejection_feedback TEXT NULL,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,

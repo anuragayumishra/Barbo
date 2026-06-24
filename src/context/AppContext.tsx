@@ -32,6 +32,9 @@ export interface Barber {
   lat: number;
   lon: number;
   chairsCount: number;
+  openingTime?: string;
+  closingTime?: string;
+  workingDays?: string;
 }
 
 export interface Appointment {
@@ -85,6 +88,7 @@ interface AppContextType {
   rescheduleAppointment: (appointmentId: string, date: string, startTime: string, serviceIds?: string[]) => Promise<{ success: boolean; message: string }>;
   updateAppointmentStatus: (appointmentId: string, status: 'upcoming' | 'in_progress' | 'completed' | 'cancelled', cancellationReason?: string) => void;
   updateBarberDelay: (barberId: string, delayStatus: string) => void;
+  updateBarberSettings: (barberId: string, settings: { openingTime: string; closingTime: string; workingDays: string; mapsUrl: string; lat?: number; lon?: number }) => Promise<{ success: boolean; message: string }>;
   updateAppointmentTelemetry: (appointmentId: string, telemetry: Partial<Appointment>) => void;
   startAppointmentWithOtp: (appointmentId: string, otp: string) => Promise<{ success: boolean; message: string }>;
   completeAppointment: (appointmentId: string) => Promise<{ success: boolean; message: string }>;
@@ -1061,6 +1065,26 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     } catch (e) {}
   };
 
+  const updateBarberSettings = async (
+    barberId: string, 
+    settings: { openingTime: string; closingTime: string; workingDays: string; mapsUrl: string; lat?: number; lon?: number }
+  ) => {
+    setBarbers((prev) =>
+      prev.map((barber) => (barber.id === barberId ? { ...barber, ...settings } : barber))
+    );
+
+    try {
+      const res = await fetch(`${BASE_URL}/barbers/${barberId}/settings`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(settings)
+      });
+      return await res.json();
+    } catch (e: any) {
+      return { success: false, message: e.message || 'Failed to update settings' };
+    }
+  };
+
   const updateAppointmentTelemetry = async (appointmentId: string, telemetry: Partial<Appointment>) => {
     setAppointments((prev) =>
       prev.map((app) => (app.id === appointmentId ? { ...app, ...telemetry } : app))
@@ -1578,6 +1602,7 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         rescheduleAppointment,
         updateAppointmentStatus,
         updateBarberDelay,
+        updateBarberSettings,
         updateAppointmentTelemetry,
         startAppointmentWithOtp,
         completeAppointment,

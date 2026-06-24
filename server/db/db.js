@@ -165,6 +165,49 @@ const runAutoMigrations = async () => {
       `);
     }
 
+    // 8. barber_applications working_days column
+    const [appWorkingDaysCols] = await pool.query(`
+      SELECT COLUMN_NAME 
+      FROM INFORMATION_SCHEMA.COLUMNS 
+      WHERE TABLE_SCHEMA = DATABASE() 
+        AND TABLE_NAME = 'barber_applications' 
+        AND COLUMN_NAME = 'working_days'
+    `);
+    if (appWorkingDaysCols.length === 0) {
+      console.log('➕ Adding column: barber_applications.working_days');
+      await pool.query(`
+        ALTER TABLE barber_applications ADD COLUMN working_days VARCHAR(255) DEFAULT 'Mon,Tue,Wed,Thu,Fri,Sat,Sun'
+      `);
+    }
+
+    // 9. barbers opening_time, closing_time, working_days columns
+    const [barberScheduleCols] = await pool.query(`
+      SELECT COLUMN_NAME 
+      FROM INFORMATION_SCHEMA.COLUMNS 
+      WHERE TABLE_SCHEMA = DATABASE() 
+        AND TABLE_NAME = 'barbers' 
+        AND COLUMN_NAME IN ('opening_time', 'closing_time', 'working_days')
+    `);
+    const barberColNames = barberScheduleCols.map(c => c.COLUMN_NAME);
+    if (!barberColNames.includes('opening_time')) {
+      console.log('➕ Adding column: barbers.opening_time');
+      await pool.query(`
+        ALTER TABLE barbers ADD COLUMN opening_time VARCHAR(10) DEFAULT '09:00'
+      `);
+    }
+    if (!barberColNames.includes('closing_time')) {
+      console.log('➕ Adding column: barbers.closing_time');
+      await pool.query(`
+        ALTER TABLE barbers ADD COLUMN closing_time VARCHAR(10) DEFAULT '21:00'
+      `);
+    }
+    if (!barberColNames.includes('working_days')) {
+      console.log('➕ Adding column: barbers.working_days');
+      await pool.query(`
+        ALTER TABLE barbers ADD COLUMN working_days VARCHAR(255) DEFAULT 'Mon,Tue,Wed,Thu,Fri,Sat,Sun'
+      `);
+    }
+
     console.log('✅ Auto-migrations completed successfully!');
   } catch (err) {
     console.error('⚠️ Auto-migrations failed:', err.message);
