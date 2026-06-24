@@ -71,41 +71,68 @@ interface NavigateButtonProps {
 
 const NavigateButton: React.FC<NavigateButtonProps> = ({ appointment, barber, hideButton }) => {
   const handleNavigate = () => {
-    const mapsLink = barber?.mapsUrl || 
-                     (barber as any)?.maps_url || 
-                     appointment?.mapsUrl || 
-                     (appointment as any)?.maps_url || 
-                     (appointment as any)?.barberMapsUrl;
+    const getDirectionsUrl = (originLat: number, originLon: number) => {
+      let dest = barber?.mapsUrl || 
+                 (barber as any)?.maps_url || 
+                 appointment?.mapsUrl || 
+                 (appointment as any)?.maps_url || 
+                 (appointment as any)?.barberMapsUrl || '';
 
-    if (mapsLink) {
-      window.open(mapsLink, '_blank');
-      return;
+      // Try to parse query string from Google Maps URL
+      if (dest.includes('query=')) {
+        const match = dest.match(/[?&]query=([^&]+)/);
+        if (match) {
+          dest = decodeURIComponent(match[1]);
+        }
+      } else {
+        // Try to parse @lat,lon from Google Maps URL
+        const coordMatch = dest.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/) ||
+                           dest.match(/query=(-?\d+\.\d+),(-?\d+\.\d+)/) ||
+                           dest.match(/ll=(-?\d+\.\d+),(-?\d+\.\d+)/);
+        if (coordMatch) {
+          dest = `${coordMatch[1]},${coordMatch[2]}`;
+        }
+      }
+
+      // If no valid destination parsed from mapsUrl, fallback to name + location
+      const name = barber?.name || appointment?.barberName;
+      const loc = barber?.location || appointment?.location;
+      if (!dest || dest.startsWith('http')) {
+        if (name && loc) {
+          dest = `${name} ${loc}`;
+        } else if (barber?.lat && barber?.lon && (barber.lat !== 23.25 || barber.lon !== 77.41)) {
+          dest = `${barber.lat},${barber.lon}`;
+        } else if (appointment?.barberLat && appointment?.barberLon && (appointment.barberLat !== 23.25 || appointment.barberLon !== 77.41)) {
+          dest = `${appointment.barberLat},${appointment.barberLon}`;
+        } else {
+          dest = dest || 'Looks Salon Bhopal';
+        }
+      }
+
+      return `https://www.google.com/maps/dir/?api=1&origin=${originLat},${originLon}&destination=${encodeURIComponent(dest)}&travelmode=driving`;
+    };
+
+    const fallbackUserLat = appointment?.userLat || 23.2495;
+    const fallbackUserLon = appointment?.userLon || 77.4172;
+
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          const lat = position.coords.latitude;
+          const lon = position.coords.longitude;
+          const url = getDirectionsUrl(lat, lon);
+          window.open(url, '_blank');
+        },
+        (error) => {
+          console.error("Error getting geolocation:", error);
+          const url = getDirectionsUrl(fallbackUserLat, fallbackUserLon);
+          window.open(url, '_blank');
+        }
+      );
+    } else {
+      const url = getDirectionsUrl(fallbackUserLat, fallbackUserLon);
+      window.open(url, '_blank');
     }
-
-    const userLat = appointment?.userLat || 23.2495;
-    const userLon = appointment?.userLon || 77.4172;
-    const barberLat = appointment?.barberLat || barber?.lat || 23.2425;
-    const barberLon = appointment?.barberLon || barber?.lon || 77.4190;
-    
-    // If the coordinates are not the dummy ones, we can route using them
-    if (barberLat && barberLon && (barberLat !== 23.25 || barberLon !== 77.41)) {
-      const routingUrl = `https://www.google.com/maps/dir/?api=1&origin=${userLat},${userLon}&destination=${barberLat},${barberLon}&travelmode=driving`;
-      window.open(routingUrl, '_blank');
-      return;
-    }
-
-    // Fallback: search Google Maps by name and location
-    const name = barber?.name || appointment?.barberName;
-    const loc = barber?.location || appointment?.location;
-    if (name && loc) {
-      const searchUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(name + ' ' + loc)}`;
-      window.open(searchUrl, '_blank');
-      return;
-    }
-
-    // Extreme fallback routing URL
-    const routingUrl = `https://www.google.com/maps/dir/?api=1&origin=${userLat},${userLon}&destination=${barberLat},${barberLon}&travelmode=driving`;
-    window.open(routingUrl, '_blank');
   };
 
   return (
