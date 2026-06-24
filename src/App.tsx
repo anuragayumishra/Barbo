@@ -1067,6 +1067,14 @@ export default function App() {
     return days[dateObj.getDay()];
   };
 
+  const isAppointmentExpired = (app: any) => {
+    if (!app.date || !app.endTime) return false;
+    const [y, m, d] = app.date.split('-').map(Number);
+    const [endH, endM] = app.endTime.split(':').map(Number);
+    const slotEndTime = new Date(y, m - 1, d, endH, endM, 0);
+    return new Date().getTime() > slotEndTime.getTime();
+  };
+
   const getDynamicTimeSlots = (barber: Barber | null) => {
     const opening = barber?.openingTime || '09:00';
     const closing = barber?.closingTime || '21:00';
@@ -1211,8 +1219,8 @@ export default function App() {
 
   const activeBarberBookings = appointments.filter((app) => app.barberId === activeBarber.id);
   const sortedBarberBookings = [...activeBarberBookings].sort((a, b) => {
-    const isFinishedA = a.status === 'completed' || a.status === 'cancelled';
-    const isFinishedB = b.status === 'completed' || b.status === 'cancelled';
+    const isFinishedA = a.status === 'completed' || a.status === 'cancelled' || isAppointmentExpired(a);
+    const isFinishedB = b.status === 'completed' || b.status === 'cancelled' || isAppointmentExpired(b);
     if (isFinishedA && !isFinishedB) return 1;
     if (!isFinishedA && isFinishedB) return -1;
 
@@ -2516,7 +2524,7 @@ export default function App() {
                     ))}
 
                   {/* Real-time Delay & Active Appointments Section */}
-                  {appointments.filter(app => app.customerId === currentUser.id && (app.status === 'upcoming' || app.status === 'in_progress')).length > 0 && (
+                  {appointments.filter(app => app.customerId === currentUser.id && (app.status === 'upcoming' || app.status === 'in_progress') && !isAppointmentExpired(app)).length > 0 && (
                     <div style={{ marginBottom: '50px' }}>
                       <h2 style={{ fontSize: '1.5rem', marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '8px' }}>
                         <Clock size={20} style={{ color: 'var(--accent-gold)' }} />
@@ -2524,7 +2532,7 @@ export default function App() {
                       </h2>
                       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(var(--grid-min-width, 360px), 1fr))', gap: '24px' }}>
                         {sortUpcomingAppointments(appointments
-                          .filter((app) => app.customerId === currentUser.id && (app.status === 'upcoming' || app.status === 'in_progress')))
+                          .filter((app) => app.customerId === currentUser.id && (app.status === 'upcoming' || app.status === 'in_progress') && !isAppointmentExpired(app)))
                           .map((app) => {
                         const barberData = barbers.find((b) => b.id === app.barberId);
                         const isDelayed = barberData && barberData.delayStatus !== 'On Time';
@@ -2823,15 +2831,14 @@ export default function App() {
                 </div>
               </div>
 
-              {/* Past Appointments / Cuts History */}
-              {appointments.filter(app => app.customerId === currentUser.id && (app.status === 'completed' || app.status === 'cancelled')).length > 0 && (
+              {appointments.filter(app => app.customerId === currentUser.id && (app.status === 'completed' || app.status === 'cancelled' || isAppointmentExpired(app))).length > 0 && (
                 <div>
                   <h2 style={{ fontSize: '1.5rem', marginBottom: '20px', color: 'var(--text-secondary)' }}>
                     Your Cut History
                   </h2>
                   <div className="glass-card gsap-card" style={{ padding: '0 24px' }}>
                     {sortPastAppointments(appointments
-                      .filter((app) => app.customerId === currentUser.id && (app.status === 'completed' || app.status === 'cancelled')))
+                      .filter((app) => app.customerId === currentUser.id && (app.status === 'completed' || app.status === 'cancelled' || isAppointmentExpired(app))))
                       .map((app, i) => (
                         <div 
                           key={app.id} 
@@ -2862,8 +2869,18 @@ export default function App() {
                                 Pay at Shop
                               </span>
                             </div>
-                            <span className={`badge ${app.status === 'completed' ? 'badge-gold' : app.paymentStatus === 'refunded' ? 'badge-green' : 'badge-red'}`}>
-                              {app.paymentStatus === 'refunded' ? 'Refunded' : app.status}
+                            <span className={`badge ${
+                              app.status === 'completed' 
+                                ? 'badge-gold' 
+                                : app.status === 'cancelled' 
+                                  ? 'badge-red' 
+                                  : 'badge-red'
+                            }`}>
+                              {app.status === 'completed' 
+                                ? 'completed' 
+                                : app.status === 'cancelled' 
+                                  ? (app.paymentStatus === 'refunded' ? 'Refunded' : 'cancelled') 
+                                  : 'expired'}
                             </span>
                           </div>
                         </div>
@@ -2939,8 +2956,8 @@ export default function App() {
                       key={app.id} 
                       className="glass-card gsap-card"
                       style={{ 
-                        opacity: app.status === 'completed' ? 0.6 : 1,
-                        borderColor: app.status === 'completed' ? 'var(--border-light)' : 'var(--border-subtle)'
+                        opacity: (app.status === 'completed' || app.status === 'cancelled' || isAppointmentExpired(app)) ? 0.6 : 1,
+                        borderColor: (app.status === 'completed' || app.status === 'cancelled' || isAppointmentExpired(app)) ? 'var(--border-light)' : 'var(--border-subtle)'
                       }}
                     >
                       <div style={{ display: 'flex', justifyContent: 'space-between', gap: '20px', alignItems: 'center', flexWrap: 'wrap', marginBottom: '16px' }}>
@@ -2950,8 +2967,18 @@ export default function App() {
                           <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginLeft: '12px' }}>({app.totalDuration} mins)</span>
                         </div>
                         <div>
-                          <span className={`badge ${app.status === 'upcoming' ? 'badge-gold' : app.status === 'completed' ? 'badge-green' : 'badge-red'}`}>
-                            {app.status}
+                          <span className={`badge ${
+                            isAppointmentExpired(app) && app.status !== 'completed' && app.status !== 'cancelled'
+                              ? 'badge-red'
+                              : app.status === 'upcoming' 
+                                ? 'badge-gold' 
+                                : app.status === 'completed' 
+                                  ? 'badge-green' 
+                                  : 'badge-red'
+                          }`}>
+                            {isAppointmentExpired(app) && app.status !== 'completed' && app.status !== 'cancelled'
+                              ? 'expired'
+                              : app.status}
                           </span>
                         </div>
                       </div>
@@ -3021,7 +3048,7 @@ export default function App() {
                           </span>
                         </div>
                         
-                        {app.status === 'upcoming' && (
+                        {app.status === 'upcoming' && !isAppointmentExpired(app) && (
                           <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
                               <button 
                                 className="btn-secondary"
@@ -3079,7 +3106,7 @@ export default function App() {
                       </div>
 
                       {/* Live Telemetry Tracking Map inside Barber Console */}
-                      {app.status === 'upcoming' && (
+                      {app.status === 'upcoming' && !isAppointmentExpired(app) && (
                         <div style={{ borderTop: '1px solid var(--border-light)', marginTop: '16px', paddingTop: '16px' }}>
                           <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--accent-gold)', display: 'block', marginBottom: '8px' }}>
                             Customer Navigation Status
