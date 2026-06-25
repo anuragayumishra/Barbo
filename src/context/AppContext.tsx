@@ -669,6 +669,32 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     initLocal();
   }, [userCoordinates]);
 
+  // Force-refresh barber data from server when a barber user logs in
+  // This ensures any admin-approved location changes are reflected immediately
+  // instead of serving stale data from localStorage.
+  useEffect(() => {
+    if (!currentUser || currentUser.role !== 'barber') return;
+
+    const refreshBarberData = async () => {
+      try {
+        const lat = userCoordinates?.lat || 23.2495;
+        const lng = userCoordinates?.lng || 77.4172;
+        const res = await fetch(`${BASE_URL}/barbers?lat=${lat}&lng=${lng}`);
+        if (res.ok) {
+          const data = await res.json();
+          setBarbers(data);
+          // Also clear stale localStorage so next load also gets fresh data
+          localStorage.setItem('barbo_barbers', JSON.stringify(data));
+        }
+      } catch (err) {
+        console.warn('Could not refresh barber data from server.');
+      }
+    };
+
+    refreshBarberData();
+  }, [currentUser?.id]); // Run when user identity changes (login/logout)
+
+
   // Load appointments dynamically when user logs in
   useEffect(() => {
     const fetchAppointments = async () => {
@@ -1347,6 +1373,7 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   };
 
   const adminApproveLocationRequest = async (requestId: number): Promise<{ success: boolean; message: string }> => {
+    // Optimistic update in local state from the pending request object
     const reqObj = locationRequests.find(r => r.id === requestId);
     if (reqObj) {
       setBarbers(prev => prev.map(b => b.id === reqObj.barberId ? { ...b, mapsUrl: reqObj.proposedMapsUrl, lat: reqObj.proposedLat, lon: reqObj.proposedLon } : b));
@@ -1359,6 +1386,22 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         headers: { 'Content-Type': 'application/json' }
       });
       const data = await res.json();
+
+      if (res.ok && data.success) {
+        // Re-fetch all barbers from the server so the approved location is canonical
+        // This also clears localStorage so barbers get fresh data on next load
+        try {
+          const barbersRes = await fetch(`${BASE_URL}/barbers`);
+          if (barbersRes.ok) {
+            const freshBarbers = await barbersRes.json();
+            setBarbers(freshBarbers);
+            localStorage.setItem('barbo_barbers', JSON.stringify(freshBarbers));
+          }
+        } catch (refetchErr) {
+          console.warn('Could not re-fetch barbers after approval.');
+        }
+      }
+
       return data;
     } catch (err: any) {
       console.warn("Server offline, approved request in offline mode.");
