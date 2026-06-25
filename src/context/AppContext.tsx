@@ -103,6 +103,10 @@ interface AppContextType {
   updateAppointmentStatus: (appointmentId: string, status: 'upcoming' | 'in_progress' | 'completed' | 'cancelled', cancellationReason?: string) => void;
   updateBarberDelay: (barberId: string, delayStatus: string) => void;
   updateBarberSettings: (barberId: string, settings: { openingTime: string; closingTime: string; workingDays: string; mapsUrl: string; lat?: number; lon?: number; reason?: string }) => Promise<{ success: boolean; message: string }>;
+  updateBarberProfileImage: (barberId: string, url: string) => Promise<{ success: boolean; message: string }>;
+  addBarberPortfolioImage: (barberId: string, url: string) => Promise<{ success: boolean; message: string }>;
+  deleteBarberPortfolioImage: (barberId: string, url: string) => Promise<{ success: boolean; message: string }>;
+  updateBarberPortfolioOrder: (barberId: string, urls: string[]) => Promise<{ success: boolean; message: string }>;
   updateAppointmentTelemetry: (appointmentId: string, telemetry: Partial<Appointment>) => void;
   startAppointmentWithOtp: (appointmentId: string, otp: string) => Promise<{ success: boolean; message: string }>;
   completeAppointment: (appointmentId: string) => Promise<{ success: boolean; message: string }>;
@@ -1173,6 +1177,111 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     }
   };
 
+  const updateBarberProfileImage = async (barberId: string, url: string) => {
+    // 1. Update local state
+    setBarbers((prev) =>
+      prev.map((barber) => (barber.id === barberId ? { ...barber, imageUrl: url } : barber))
+    );
+
+    // 2. Call backend
+    try {
+      const res = await fetch(`${BASE_URL}/barbers/${barberId}/profile-image`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url })
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        return { success: true, message: 'Shop profile image updated successfully!' };
+      }
+      return { success: false, message: data.message || 'Failed to update profile image on backend' };
+    } catch (e: any) {
+      console.warn("Express server offline, running fallback for profile image update.");
+      return { success: true, message: 'Profile image updated successfully offline!' };
+    }
+  };
+
+  const addBarberPortfolioImage = async (barberId: string, url: string) => {
+    // 1. Update local state
+    setBarbers((prev) =>
+      prev.map((barber) => (barber.id === barberId ? { 
+        ...barber, 
+        portfolioImages: [...(barber.portfolioImages || []), url] 
+      } : barber))
+    );
+
+    // 2. Call backend
+    try {
+      const res = await fetch(`${BASE_URL}/barbers/${barberId}/portfolio`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url })
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        return { success: true, message: 'Portfolio image added successfully!' };
+      }
+      return { success: false, message: data.message || 'Failed to add portfolio image on backend' };
+    } catch (e: any) {
+      console.warn("Express server offline, running fallback for portfolio addition.");
+      return { success: true, message: 'Portfolio image added successfully offline!' };
+    }
+  };
+
+  const deleteBarberPortfolioImage = async (barberId: string, url: string) => {
+    // 1. Update local state
+    setBarbers((prev) =>
+      prev.map((barber) => (barber.id === barberId ? { 
+        ...barber, 
+        portfolioImages: (barber.portfolioImages || []).filter((img) => img !== url) 
+      } : barber))
+    );
+
+    // 2. Call backend
+    try {
+      const res = await fetch(`${BASE_URL}/barbers/${barberId}/portfolio`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url })
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        return { success: true, message: 'Portfolio image deleted successfully!' };
+      }
+      return { success: false, message: data.message || 'Failed to delete portfolio image on backend' };
+    } catch (e: any) {
+      console.warn("Express server offline, running fallback for portfolio deletion.");
+      return { success: true, message: 'Portfolio image deleted successfully offline!' };
+    }
+  };
+
+  const updateBarberPortfolioOrder = async (barberId: string, urls: string[]) => {
+    // 1. Update local state
+    setBarbers((prev) =>
+      prev.map((barber) => (barber.id === barberId ? { 
+        ...barber, 
+        portfolioImages: urls 
+      } : barber))
+    );
+
+    // 2. Call backend
+    try {
+      const res = await fetch(`${BASE_URL}/barbers/${barberId}/portfolio/order`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ imageUrls: urls })
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        return { success: true, message: 'Portfolio order updated successfully!' };
+      }
+      return { success: false, message: data.message || 'Failed to update portfolio order on backend' };
+    } catch (e: any) {
+      console.warn("Express server offline, running fallback for portfolio reordering.");
+      return { success: true, message: 'Portfolio order updated successfully offline!' };
+    }
+  };
+
   const adminFetchBarbers = async (): Promise<{ success: boolean; barbers: Barber[] }> => {
     try {
       const res = await fetch(`${BASE_URL}/barbers`);
@@ -1901,6 +2010,10 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         updateAppointmentStatus,
         updateBarberDelay,
         updateBarberSettings,
+        updateBarberProfileImage,
+        addBarberPortfolioImage,
+        deleteBarberPortfolioImage,
+        updateBarberPortfolioOrder,
         updateAppointmentTelemetry,
         startAppointmentWithOtp,
         completeAppointment,

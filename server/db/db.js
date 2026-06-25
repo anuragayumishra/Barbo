@@ -234,6 +234,21 @@ const runAutoMigrations = async () => {
       )
     `);
 
+    // 12. Add display_order to barber_portfolio table if missing
+    const [portfolioCols] = await pool.query(`
+      SELECT COLUMN_NAME 
+      FROM INFORMATION_SCHEMA.COLUMNS 
+      WHERE TABLE_SCHEMA = DATABASE() 
+        AND TABLE_NAME = 'barber_portfolio' 
+        AND COLUMN_NAME = 'display_order'
+    `);
+    if (portfolioCols.length === 0) {
+      console.log('➕ Adding column: barber_portfolio.display_order');
+      await pool.query(`
+        ALTER TABLE barber_portfolio ADD COLUMN display_order INT DEFAULT 0
+      `);
+    }
+
     console.log('✅ Auto-migrations completed successfully!');
   } catch (err) {
     console.error('⚠️ Auto-migrations failed:', err.message);

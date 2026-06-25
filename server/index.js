@@ -612,7 +612,7 @@ app.get('/api/barbers', async (req, res) => {
     const formattedBarbers = await Promise.all(
       barbersRows.map(async (barber) => {
         // Fetch portfolio
-        const [portfolio] = await pool.query('SELECT image_url FROM barber_portfolio WHERE barber_id = ?', [barber.id]);
+        const [portfolio] = await pool.query('SELECT image_url FROM barber_portfolio WHERE barber_id = ? ORDER BY display_order ASC, id ASC', [barber.id]);
         
         // Calculate distance dynamically if client coordinates are passed
         let dist = barber.distance_meters;
@@ -1434,6 +1434,80 @@ app.put('/api/barbers/:id/settings', async (req, res) => {
     );
 
     res.json({ success: true, message: 'Shop settings updated successfully!' });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// 9.05a Update Barber Shop Profile Image URL
+app.put('/api/barbers/:id/profile-image', async (req, res) => {
+  const { id } = req.params;
+  const { url } = req.body;
+  if (!url) {
+    return res.status(400).json({ success: false, message: 'Profile image URL is required' });
+  }
+  try {
+    await pool.query('UPDATE barbers SET image_url = ? WHERE id = ?', [url.trim(), id]);
+    res.json({ success: true, message: 'Shop profile image updated successfully!' });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// 9.05b Add Barber Portfolio Image
+app.post('/api/barbers/:id/portfolio', async (req, res) => {
+  const { id } = req.params;
+  const { url } = req.body;
+  if (!url) {
+    return res.status(400).json({ success: false, message: 'Portfolio image URL is required' });
+  }
+  try {
+    // Determine the next display order (max + 1)
+    const [rows] = await pool.query('SELECT MAX(display_order) as maxOrder FROM barber_portfolio WHERE barber_id = ?', [id]);
+    const nextOrder = (rows[0] && rows[0].maxOrder !== null && rows[0].maxOrder !== undefined) ? rows[0].maxOrder + 1 : 0;
+
+    await pool.query(
+      'INSERT INTO barber_portfolio (barber_id, image_url, display_order) VALUES (?, ?, ?)',
+      [id, url.trim(), nextOrder]
+    );
+    res.json({ success: true, message: 'Portfolio image added successfully!' });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// 9.05c Delete Barber Portfolio Image
+app.delete('/api/barbers/:id/portfolio', async (req, res) => {
+  const { id } = req.params;
+  const { url } = req.body;
+  if (!url) {
+    return res.status(400).json({ success: false, message: 'Portfolio image URL is required' });
+  }
+  try {
+    await pool.query('DELETE FROM barber_portfolio WHERE barber_id = ? AND image_url = ?', [id, url.trim()]);
+    res.json({ success: true, message: 'Portfolio image deleted successfully!' });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// 9.05d Update Barber Portfolio Images Display Order
+app.put('/api/barbers/:id/portfolio/order', async (req, res) => {
+  const { id } = req.params;
+  const { imageUrls, urls } = req.body;
+  const targetUrls = imageUrls || urls;
+  if (!targetUrls || !Array.isArray(targetUrls)) {
+    return res.status(400).json({ success: false, message: 'imageUrls array is required' });
+  }
+  try {
+    // Sequentially update each image's display_order
+    for (let i = 0; i < targetUrls.length; i++) {
+      await pool.query(
+        'UPDATE barber_portfolio SET display_order = ? WHERE barber_id = ? AND image_url = ?',
+        [i, id, targetUrls[i].trim()]
+      );
+    }
+    res.json({ success: true, message: 'Portfolio order updated successfully!' });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }

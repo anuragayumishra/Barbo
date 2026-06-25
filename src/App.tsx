@@ -26,7 +26,9 @@ import {
   Trash,
   Edit,
   Building,
-  Settings
+  Settings,
+  Image,
+  ChevronLeft
 } from 'lucide-react';
 import { gsap } from 'gsap';
 
@@ -288,6 +290,10 @@ export default function App() {
     updateBarberService,
     deleteBarberService,
     updateBarberSettings,
+    updateBarberProfileImage,
+    addBarberPortfolioImage,
+    deleteBarberPortfolioImage,
+    updateBarberPortfolioOrder,
     sendOnboardingOtp,
     verifyOnboardingOtp,
     sendResetPasswordOtp,
@@ -422,6 +428,7 @@ export default function App() {
       setSettingsClosingTime(activeBarber.closingTime || '21:00');
       setSettingsWorkingDays(activeBarber.workingDays ? activeBarber.workingDays.split(',') : ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']);
       setSettingsMapsUrl(activeBarber.mapsUrl || '');
+      setProfileImageUrlInput(activeBarber.imageUrl || '');
       setLocationChangeReason('');
     }
   }, [activeBarberId, activeBarber, currentUser]);
@@ -562,6 +569,76 @@ export default function App() {
   const [editServicePrice, setEditServicePrice] = useState('');
   const [editServiceDuration, setEditServiceDuration] = useState('');
   const [editServiceCategory, setEditServiceCategory] = useState<'men' | 'women' | 'unisex'>('unisex');
+  const [newPortfolioUrl, setNewPortfolioUrl] = useState('');
+  const [profileImageUrlInput, setProfileImageUrlInput] = useState('');
+  const [isSavingProfileImage, setIsSavingProfileImage] = useState(false);
+  const [lightboxImages, setLightboxImages] = useState<string[]>([]);
+  const [lightboxIndex, setLightboxIndex] = useState<number>(0);
+  const [isLightboxOpen, setIsLightboxOpen] = useState<boolean>(false);
+
+  const handleUpdateProfileImage = async () => {
+    if (!profileImageUrlInput.trim()) {
+      showToast('Please enter a valid image URL.');
+      return;
+    }
+    setIsSavingProfileImage(true);
+    const res = await updateBarberProfileImage(activeBarber.id, profileImageUrlInput.trim());
+    setIsSavingProfileImage(false);
+    if (res.success) {
+      showToast(res.message || 'Profile picture updated successfully!');
+    } else {
+      showToast(res.message || 'Failed to update profile picture.');
+    }
+  };
+
+  const handleAddPortfolioImage = async (urlToAdd: string) => {
+    const url = urlToAdd.trim();
+    if (!url) {
+      showToast('Please enter or select a valid image URL.');
+      return;
+    }
+    if ((activeBarber.portfolioImages || []).includes(url)) {
+      showToast('This image is already in your portfolio.');
+      return;
+    }
+    const res = await addBarberPortfolioImage(activeBarber.id, url);
+    if (res.success) {
+      showToast(res.message || 'Image added to portfolio!');
+      setNewPortfolioUrl('');
+    } else {
+      showToast(res.message || 'Failed to add image.');
+    }
+  };
+
+  const handleDeletePortfolioImage = async (url: string) => {
+    const res = await deleteBarberPortfolioImage(activeBarber.id, url);
+    if (res.success) {
+      showToast(res.message || 'Image removed from portfolio!');
+    } else {
+      showToast(res.message || 'Failed to remove image.');
+    }
+  };
+
+  const handleMovePortfolioImage = async (index: number, direction: 'left' | 'right') => {
+    const images = [...(activeBarber.portfolioImages || [])];
+    if (direction === 'left' && index > 0) {
+      const temp = images[index];
+      images[index] = images[index - 1];
+      images[index - 1] = temp;
+    } else if (direction === 'right' && index < images.length - 1) {
+      const temp = images[index];
+      images[index] = images[index + 1];
+      images[index + 1] = temp;
+    } else {
+      return;
+    }
+    const res = await updateBarberPortfolioOrder(activeBarber.id, images);
+    if (res.success) {
+      showToast('Position updated successfully.');
+    } else {
+      showToast('Failed to update position.');
+    }
+  };
 
 
 
@@ -3053,14 +3130,55 @@ export default function App() {
 
                       {/* Portfolio Gallery */}
                       <div style={{ display: 'flex', gap: '10px', marginBottom: '24px' }}>
-                        {barber.portfolioImages.map((img, i) => (
-                          <img 
-                            key={i}
-                            src={img}
-                            alt="work portfolio"
-                            style={{ flex: 1, height: '70px', borderRadius: '8px', objectFit: 'cover', border: '1px solid var(--border-light)' }}
-                          />
-                        ))}
+                        {(barber.portfolioImages || []).slice(0, 3).map((img, i) => {
+                          const isLast = i === 2;
+                          const hasMore = (barber.portfolioImages || []).length > 3;
+                          const moreCount = (barber.portfolioImages || []).length - 3;
+                          return (
+                            <div 
+                              key={i}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setLightboxImages(barber.portfolioImages || []);
+                                setLightboxIndex(i);
+                                setIsLightboxOpen(true);
+                              }}
+                              className="animate-hover"
+                              style={{ 
+                                flex: 1, 
+                                height: '70px', 
+                                borderRadius: '8px', 
+                                overflow: 'hidden', 
+                                border: '1px solid var(--border-light)', 
+                                position: 'relative',
+                                cursor: 'pointer'
+                              }}
+                            >
+                              <img 
+                                src={img}
+                                alt="work portfolio"
+                                style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                              />
+                              {isLast && hasMore && (
+                                <div 
+                                  style={{ 
+                                    position: 'absolute', 
+                                    inset: 0, 
+                                    background: 'rgba(0, 0, 0, 0.65)', 
+                                    display: 'flex', 
+                                    alignItems: 'center', 
+                                    justifyContent: 'center', 
+                                    color: '#fff', 
+                                    fontWeight: 'bold', 
+                                    fontSize: '0.95rem' 
+                                  }}
+                                >
+                                  +{moreCount}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
                       </div>
 
                       {/* Live Status indicator */}
@@ -3620,6 +3738,191 @@ export default function App() {
                     {isSavingSettings ? 'Saving Settings...' : 'Save Settings'}
                   </button>
                 </div>
+              </div>
+
+              {/* Manage Shop Photos Panel */}
+              <div className="glass-card gsap-card barber-photos-panel" style={{ marginTop: '24px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
+                  <Image size={20} style={{ color: 'var(--accent-gold)' }} />
+                  <h2 style={{ fontSize: '1.3rem' }}>Manage Shop Photos</h2>
+                </div>
+                <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginBottom: '20px' }}>
+                  Update your shop profile picture and manage your portfolio gallery order.
+                </p>
+
+                {/* Profile Image Section */}
+                <div style={{ marginBottom: '24px', paddingBottom: '20px', borderBottom: '1px solid var(--border-light)' }}>
+                  <h3 style={{ fontSize: '0.95rem', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '12px' }}>Shop Profile Picture</h3>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                    <div style={{ width: '64px', height: '64px', borderRadius: '12px', overflow: 'hidden', border: '2px solid var(--accent-gold)', flexShrink: 0, background: 'var(--bg-tertiary)' }}>
+                      <img 
+                        src={profileImageUrlInput || 'https://via.placeholder.com/64'} 
+                        alt="Profile Preview" 
+                        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                        onError={(e) => {
+                          (e.target as HTMLImageElement).src = 'https://via.placeholder.com/64?text=No+Image';
+                        }}
+                      />
+                    </div>
+                    <div style={{ flexGrow: 1, display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                      <input 
+                        type="text"
+                        value={profileImageUrlInput}
+                        onChange={(e) => setProfileImageUrlInput(e.target.value)}
+                        placeholder="Paste image URL here"
+                        style={{ width: '100%', padding: '8px 12px', background: 'var(--bg-tertiary)', border: '1px solid var(--border-light)', borderRadius: '8px', color: 'var(--text-primary)', outline: 'none', fontSize: '0.82rem' }}
+                      />
+                      <button 
+                        type="button"
+                        onClick={handleUpdateProfileImage}
+                        className="gold-glow-btn"
+                        style={{ padding: '8px 16px', fontSize: '0.8rem', alignSelf: 'start', justifyContent: 'center' }}
+                        disabled={isSavingProfileImage}
+                      >
+                        {isSavingProfileImage ? 'Saving...' : 'Update Profile Pic'}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Portfolio Gallery Section */}
+                <div>
+                  <h3 style={{ fontSize: '0.95rem', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '12px' }}>Portfolio Gallery ({(activeBarber.portfolioImages || []).length})</h3>
+                  
+                  {/* Grid of portfolio thumbnails */}
+                  {(!activeBarber.portfolioImages || activeBarber.portfolioImages.length === 0) ? (
+                    <div style={{ background: 'var(--bg-tertiary)', border: '1px dashed var(--border-light)', borderRadius: '12px', padding: '24px', textAlign: 'center', marginBottom: '20px', color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
+                      No portfolio pictures added yet. Use the presets or add a custom URL below to showcase your salon's style.
+                    </div>
+                  ) : (
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(110px, 1fr))', gap: '12px', marginBottom: '20px' }}>
+                      {activeBarber.portfolioImages.map((imgUrl, idx) => (
+                        <div 
+                          key={idx} 
+                          className="portfolio-thumb-card"
+                          style={{ 
+                            position: 'relative', 
+                            background: 'var(--bg-secondary)', 
+                            borderRadius: '10px', 
+                            overflow: 'hidden', 
+                            border: '1px solid var(--border-light)',
+                            aspectRatio: '1/1',
+                            display: 'flex',
+                            flexDirection: 'column'
+                          }}
+                        >
+                          <img 
+                            src={imgUrl} 
+                            alt={`Portfolio ${idx + 1}`} 
+                            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                          />
+                          
+                          {/* Hover Overlay Controls */}
+                          <div 
+                            style={{ 
+                              position: 'absolute', 
+                              bottom: 0, 
+                              left: 0, 
+                              right: 0, 
+                              background: 'rgba(0, 0, 0, 0.85)', 
+                              display: 'flex', 
+                              justifyContent: 'space-around', 
+                              alignItems: 'center', 
+                              padding: '6px 0',
+                              backdropFilter: 'blur(2px)'
+                            }}
+                          >
+                            <button
+                              type="button"
+                              onClick={() => handleMovePortfolioImage(idx, 'left')}
+                              disabled={idx === 0}
+                              style={{ background: 'none', border: 'none', color: idx === 0 ? 'var(--text-muted)' : 'var(--text-primary)', cursor: idx === 0 ? 'default' : 'pointer', fontSize: '0.95rem', padding: '4px', display: 'flex', alignItems: 'center' }}
+                              title="Move Left"
+                            >
+                              ←
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleDeletePortfolioImage(imgUrl)}
+                              style={{ background: 'none', border: 'none', color: '#ff4d4d', cursor: 'pointer', padding: '4px', display: 'flex', alignItems: 'center' }}
+                              title="Delete Photo"
+                            >
+                              <Trash size={14} />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleMovePortfolioImage(idx, 'right')}
+                              disabled={idx === activeBarber.portfolioImages.length - 1}
+                              style={{ background: 'none', border: 'none', color: idx === activeBarber.portfolioImages.length - 1 ? 'var(--text-muted)' : 'var(--text-primary)', cursor: idx === activeBarber.portfolioImages.length - 1 ? 'default' : 'pointer', fontSize: '0.95rem', padding: '4px', display: 'flex', alignItems: 'center' }}
+                              title="Move Right"
+                            >
+                              →
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Add Portfolio Image Controls */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '20px' }}>
+                    <label style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>Add Custom Image Link</label>
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                      <input 
+                        type="text" 
+                        value={newPortfolioUrl}
+                        onChange={(e) => setNewPortfolioUrl(e.target.value)}
+                        placeholder="Paste image URL here"
+                        style={{ flexGrow: 1, padding: '10px', background: 'var(--bg-tertiary)', border: '1px solid var(--border-light)', borderRadius: '8px', color: 'var(--text-primary)', outline: 'none', fontSize: '0.82rem' }}
+                      />
+                      <button 
+                        type="button" 
+                        onClick={() => handleAddPortfolioImage(newPortfolioUrl)}
+                        className="gold-glow-btn"
+                        style={{ padding: '0 16px', justifyContent: 'center' }}
+                      >
+                        <Plus size={16} />
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Curated Preset Picker */}
+                  <div>
+                    <span style={{ display: 'block', fontSize: '0.78rem', color: 'var(--text-secondary)', marginBottom: '8px' }}>Curated Styling Presets (Click to add instantly)</span>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px' }}>
+                      {[
+                        { title: 'Scissor Detail', url: 'https://images.unsplash.com/photo-1503951914875-452162b0f3f1?auto=format&fit=crop&q=80&w=400&h=400' },
+                        { title: 'Styling Station', url: 'https://images.unsplash.com/photo-1560066984-138dadb4c035?auto=format&fit=crop&q=80&w=400&h=400' },
+                        { title: 'Hair Wash Station', url: 'https://images.unsplash.com/photo-1527799863830-55347bf0c2e4?auto=format&fit=crop&q=80&w=400&h=400' },
+                        { title: 'Interior Vibe', url: 'https://images.unsplash.com/photo-1585747860715-2ba37e788b70?auto=format&fit=crop&q=80&w=400&h=400' }
+                      ].map((item, idx) => (
+                        <div 
+                          key={idx} 
+                          onClick={() => handleAddPortfolioImage(item.url)}
+                          className="preset-photo-card animate-hover"
+                          style={{ 
+                            position: 'relative', 
+                            cursor: 'pointer', 
+                            borderRadius: '8px', 
+                            overflow: 'hidden', 
+                            border: '1px solid var(--border-light)',
+                            aspectRatio: '1/1',
+                            display: 'flex'
+                          }}
+                          title={item.title}
+                        >
+                          <img 
+                            src={item.url} 
+                            alt={item.title} 
+                            style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                </div>
+
               </div>
 
             </div>
@@ -5190,6 +5493,181 @@ export default function App() {
                 {isChangingPassword ? 'Updating...' : 'Update Password'}
               </button>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Premium Fullscreen Lightbox Slideshow Modal */}
+      {isLightboxOpen && lightboxImages.length > 0 && (
+        <div 
+          className="animate-fade-in" 
+          style={{ 
+            position: 'fixed', 
+            inset: 0, 
+            background: 'rgba(0, 0, 0, 0.94)', 
+            backdropFilter: 'blur(8px)', 
+            zIndex: 9999, 
+            display: 'flex', 
+            flexDirection: 'column', 
+            alignItems: 'center', 
+            justifyContent: 'center',
+            userSelect: 'none'
+          }}
+          onClick={() => setIsLightboxOpen(false)}
+        >
+          {/* Close Button */}
+          <button
+            onClick={() => setIsLightboxOpen(false)}
+            style={{
+              position: 'absolute',
+              top: '24px',
+              right: '24px',
+              background: 'rgba(255, 255, 255, 0.05)',
+              border: '1px solid rgba(255, 255, 255, 0.1)',
+              borderRadius: '50%',
+              width: '44px',
+              height: '44px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: '#fff',
+              cursor: 'pointer',
+              transition: 'all 0.2s ease',
+              zIndex: 10000
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = 'rgba(255, 255, 255, 0.1)';
+              e.currentTarget.style.transform = 'scale(1.05)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)';
+              e.currentTarget.style.transform = 'scale(1)';
+            }}
+          >
+            <X size={22} />
+          </button>
+
+          {/* Navigation Controls Wrapper */}
+          <div 
+            style={{ 
+              position: 'relative', 
+              width: '100%', 
+              maxWidth: '900px', 
+              height: '70vh', 
+              display: 'flex', 
+              alignItems: 'center', 
+              justifyContent: 'center',
+              padding: '0 48px'
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Left Chevron Button */}
+            {lightboxIndex > 0 && (
+              <button
+                onClick={() => setLightboxIndex(prev => prev - 1)}
+                style={{
+                  position: 'absolute',
+                  left: '12px',
+                  background: 'rgba(255, 255, 255, 0.05)',
+                  border: '1px solid rgba(255, 255, 255, 0.1)',
+                  borderRadius: '50%',
+                  width: '48px',
+                  height: '48px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: 'var(--accent-gold)',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s ease',
+                  zIndex: 10000
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = 'var(--accent-gold-glow)';
+                  e.currentTarget.style.color = '#fff';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)';
+                  e.currentTarget.style.color = 'var(--accent-gold)';
+                }}
+              >
+                <ChevronLeft size={24} />
+              </button>
+            )}
+
+            {/* Image Preview Container */}
+            <div 
+              style={{ 
+                width: '100%', 
+                height: '100%', 
+                display: 'flex', 
+                alignItems: 'center', 
+                justifyContent: 'center',
+                overflow: 'hidden'
+              }}
+            >
+              <img 
+                src={lightboxImages[lightboxIndex]} 
+                alt={`Slideshow ${lightboxIndex + 1}`} 
+                style={{ 
+                  maxWidth: '100%', 
+                  maxHeight: '100%', 
+                  objectFit: 'contain', 
+                  borderRadius: '12px',
+                  boxShadow: '0 20px 50px rgba(0, 0, 0, 0.5)',
+                  border: '1px solid rgba(255, 255, 255, 0.1)'
+                }} 
+              />
+            </div>
+
+            {/* Right Chevron Button */}
+            {lightboxIndex < lightboxImages.length - 1 && (
+              <button
+                onClick={() => setLightboxIndex(prev => prev + 1)}
+                style={{
+                  position: 'absolute',
+                  right: '12px',
+                  background: 'rgba(255, 255, 255, 0.05)',
+                  border: '1px solid rgba(255, 255, 255, 0.1)',
+                  borderRadius: '50%',
+                  width: '48px',
+                  height: '48px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: 'var(--accent-gold)',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s ease',
+                  zIndex: 10000
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = 'var(--accent-gold-glow)';
+                  e.currentTarget.style.color = '#fff';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)';
+                  e.currentTarget.style.color = 'var(--accent-gold)';
+                }}
+              >
+                <ChevronRight size={24} />
+              </button>
+            )}
+          </div>
+
+          {/* Indicator text at bottom */}
+          <div 
+            style={{ 
+              marginTop: '20px', 
+              color: 'rgba(255, 255, 255, 0.6)', 
+              fontSize: '0.9rem', 
+              fontWeight: 500,
+              background: 'rgba(255, 255, 255, 0.05)',
+              padding: '6px 16px',
+              borderRadius: '20px',
+              border: '1px solid rgba(255, 255, 255, 0.1)',
+              letterSpacing: '0.05em'
+            }}
+          >
+            {lightboxIndex + 1} / {lightboxImages.length}
           </div>
         </div>
       )}

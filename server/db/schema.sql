@@ -50,6 +50,7 @@ CREATE TABLE IF NOT EXISTS barber_portfolio (
   id INT AUTO_INCREMENT PRIMARY KEY,
   barber_id VARCHAR(50) NOT NULL,
   image_url TEXT NOT NULL,
+  display_order INT DEFAULT 0,
   FOREIGN KEY (barber_id) REFERENCES barbers(id) ON DELETE CASCADE
 );
 
