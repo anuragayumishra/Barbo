@@ -74,11 +74,13 @@ interface NavigateButtonProps {
 const NavigateButton: React.FC<NavigateButtonProps> = ({ appointment, barber, hideButton }) => {
   const handleNavigate = () => {
     const getDirectionsUrl = (originLat: number, originLon: number) => {
-      let dest = barber?.mapsUrl || 
-                 (barber as any)?.maps_url || 
-                 appointment?.mapsUrl || 
-                 (appointment as any)?.maps_url || 
-                 (appointment as any)?.barberMapsUrl || '';
+      // Prefer barberMapsUrl from the appointment (fetched live from DB every 3s)
+      // over barber.mapsUrl which may be stale from localStorage cache.
+      let dest = (appointment as any)?.barberMapsUrl ||
+                 appointment?.mapsUrl ||
+                 (appointment as any)?.maps_url ||
+                 barber?.mapsUrl || 
+                 (barber as any)?.maps_url || '';
 
       // Try to parse query string from Google Maps URL
       if (dest.includes('query=')) {
