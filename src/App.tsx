@@ -3242,7 +3242,7 @@ export default function App() {
                           <div>
                             <h4 style={{ fontSize: '1.05rem' }}>{app.services.map((s: any) => s.name).join(' + ')}</h4>
                             <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-                              Barber: {app.barberName} • Date: {app.date}
+                              Barber: {app.barberName} • Date: {app.date} • Time: {app.startTime}
                             </p>
                             {app.status === 'cancelled' && app.travelStatus && app.travelStatus.startsWith('Cancelled: ') && (
                               <p style={{ fontSize: '0.8rem', color: 'var(--status-red)', marginTop: '4px', fontStyle: 'italic' }}>
