@@ -94,7 +94,7 @@ export interface LocationChangeRequest {
 interface AppContextType {
   currentUser: User | null;
   login: (email: string, password: string) => Promise<{ success: boolean; message: string }>;
-  signup: (name: string, email: string, password: string) => Promise<{ success: boolean; message: string }>;
+  signup: (name: string, email: string, password: string, otp: string) => Promise<{ success: boolean; message: string }>;
   logout: () => void;
   barbers: Barber[];
   services: Service[];
@@ -134,6 +134,7 @@ interface AppContextType {
   // OTP Verification & Password Management
   sendOnboardingOtp: (email: string) => Promise<{ success: boolean; message: string }>;
   verifyOnboardingOtp: (email: string, otp: string) => Promise<{ success: boolean; message: string }>;
+  sendSignupOtp: (email: string) => Promise<{ success: boolean; message: string }>;
   sendResetPasswordOtp: (email: string) => Promise<{ success: boolean; message: string }>;
   resetPasswordWithOtp: (email: string, otp: string, newPassword: string) => Promise<{ success: boolean; message: string }>;
   changePassword: (email: string, oldPassword: string, newPassword: string) => Promise<{ success: boolean; message: string }>;
@@ -812,12 +813,31 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     }
   };
 
-  const signup = async (name: string, email: string, password: string) => {
+  const sendSignupOtp = async (email: string) => {
+    try {
+      const res = await fetch(`${BASE_URL}/auth/signup/send-otp`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email })
+      });
+      const data = await res.json();
+      return { success: res.ok && data.success, message: data.message };
+    } catch (err) {
+      console.warn("Express server offline, running fallback signup OTP sender.");
+      const trimmedEmail = email.trim().toLowerCase();
+      if (MOCK_USERS.some(u => u.email === trimmedEmail)) {
+        return { success: false, message: 'Email is already registered.' };
+      }
+      return { success: true, message: 'Verification OTP sent to your email. (Offline Fallback - Enter Code 123456)' };
+    }
+  };
+
+  const signup = async (name: string, email: string, password: string, otp: string) => {
     try {
       const res = await fetch(`${BASE_URL}/auth/signup`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, email, password })
+        body: JSON.stringify({ name, email, password, otp })
       });
       const data = await res.json();
       if (res.ok && data.success) {
@@ -828,6 +848,9 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       }
     } catch (err) {
       console.warn("Express server offline, running fallback local credential creator.");
+      if (otp.trim() !== '123456') {
+        return { success: false, message: 'Incorrect OTP. Use 123456 for offline testing.' };
+      }
       const trimmedEmail = email.trim().toLowerCase();
       const exists = MOCK_USERS.some((u) => u.email === trimmedEmail);
       if (exists) {
@@ -2103,6 +2126,7 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         // OTP Verification & Password Management
         sendOnboardingOtp,
         verifyOnboardingOtp,
+        sendSignupOtp,
         sendResetPasswordOtp,
         resetPasswordWithOtp,
         changePassword,

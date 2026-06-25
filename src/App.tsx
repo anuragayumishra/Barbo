@@ -298,6 +298,7 @@ export default function App() {
     updateBarberPortfolioOrder,
     sendOnboardingOtp,
     verifyOnboardingOtp,
+    sendSignupOtp,
     sendResetPasswordOtp,
     resetPasswordWithOtp,
     changePassword,
@@ -365,6 +366,9 @@ export default function App() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loginError, setLoginError] = useState('');
+  const [signupOtpSent, setSignupOtpSent] = useState(false);
+  const [signupOtp, setSignupOtp] = useState('');
+  const [isSendingSignupOtp, setIsSendingSignupOtp] = useState(false);
 
   // Geolocation Geocoder and OTP states
   const [searchQuery, setSearchQuery] = useState('');
@@ -1169,8 +1173,22 @@ export default function App() {
       return;
     }
 
+    if (isSignup && !signupOtpSent) {
+      setIsSendingSignupOtp(true);
+      setLoginError('');
+      const res = await sendSignupOtp(email);
+      setIsSendingSignupOtp(false);
+      if (res.success) {
+        setSignupOtpSent(true);
+        showToast(res.message);
+      } else {
+        setLoginError(res.message);
+      }
+      return;
+    }
+
     const res = isSignup 
-      ? await signup(signupName, email, password)
+      ? await signup(signupName, email, password, signupOtp)
       : await login(email, password);
 
     if (res.success) {
@@ -1179,6 +1197,8 @@ export default function App() {
       setEmail('');
       setSignupName('');
       setPassword('');
+      setSignupOtp('');
+      setSignupOtpSent(false);
       setIsSignup(false);
       if (isSignup) {
         showToast('Account successfully created! Welcome to Barbo.');
@@ -1740,7 +1760,11 @@ export default function App() {
 
         {/* Login Modal Overlay */}
         {showLoginModal && (
-          <div className="modal-overlay-backdrop animate-fade-in" onClick={() => setShowLoginModal(false)}>
+          <div className="modal-overlay-backdrop animate-fade-in" onClick={() => {
+            setShowLoginModal(false);
+            setSignupOtpSent(false);
+            setSignupOtp('');
+          }}>
             <div 
               className="glass-card gsap-login-box" 
               style={{ width: '100%', maxWidth: '440px', padding: '40px 32px', position: 'relative' }}
@@ -1754,6 +1778,8 @@ export default function App() {
                   setForgotOtpSent(false);
                   setForgotError('');
                   setForgotSuccess('');
+                  setSignupOtpSent(false);
+                  setSignupOtp('');
                 }}
                 style={{ 
                   position: 'absolute', 
@@ -1905,77 +1931,126 @@ export default function App() {
 
                   {/* Form */}
                   <form onSubmit={handleLoginSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                    {isSignup && (
-                      <div>
-                        <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '8px' }}>
-                          Full Name
-                        </label>
-                        <div style={{ position: 'relative' }}>
-                          <User size={16} style={{ position: 'absolute', left: '14px', top: '15px', color: 'var(--text-muted)' }} />
-                          <input 
-                            type="text"
-                            placeholder="John Doe"
-                            value={signupName}
-                            onChange={(e) => setSignupName(e.target.value)}
-                            style={{ width: '100%', padding: '12px 16px 12px 42px', background: 'var(--bg-tertiary)', border: '1px solid var(--border-light)', borderRadius: '12px', color: 'var(--text-primary)', outline: 'none', fontSize: '0.95rem' }}
-                          />
+                    {isSignup && signupOtpSent ? (
+                      <>
+                        <div style={{ textAlign: 'center', margin: '4px 0' }}>
+                          <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
+                            We've sent a 6-digit verification code to <strong style={{ color: 'var(--accent-gold)' }}>{email}</strong>.
+                          </p>
                         </div>
-                      </div>
-                    )}
-
-                    <div>
-                      <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '8px' }}>
-                        Email Address
-                      </label>
-                      <div style={{ position: 'relative' }}>
-                        <Mail size={16} style={{ position: 'absolute', left: '14px', top: '15px', color: 'var(--text-muted)' }} />
-                        <input 
-                          type="email"
-                          placeholder="name@domain.com"
-                          value={email}
-                          onChange={(e) => setEmail(e.target.value)}
-                          style={{ width: '100%', padding: '12px 16px 12px 42px', background: 'var(--bg-tertiary)', border: '1px solid var(--border-light)', borderRadius: '12px', color: 'var(--text-primary)', outline: 'none', fontSize: '0.95rem' }}
-                        />
-                      </div>
-                    </div>
-
-                    <div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                        <label style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
-                          Password
-                        </label>
-                        {!isSignup && (
+                        <div>
+                          <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '8px' }}>
+                            Verification OTP
+                          </label>
+                          <div style={{ position: 'relative' }}>
+                            <Lock size={16} style={{ position: 'absolute', left: '14px', top: '15px', color: 'var(--text-muted)' }} />
+                            <input 
+                              type="text"
+                              placeholder="6-digit OTP code"
+                              value={signupOtp}
+                              onChange={(e) => setSignupOtp(e.target.value)}
+                              style={{ width: '100%', padding: '12px 16px 12px 42px', background: 'var(--bg-tertiary)', border: '1px solid var(--border-light)', borderRadius: '12px', color: 'var(--text-primary)', outline: 'none', fontSize: '0.95rem' }}
+                              required
+                            />
+                          </div>
+                        </div>
+                        <button 
+                          type="submit" 
+                          className="gold-glow-btn"
+                          style={{ justifyContent: 'center', marginTop: '10px', padding: '12px' }}
+                        >
+                          Verify & Register
+                        </button>
+                        <div style={{ textAlign: 'center', marginTop: '12px' }}>
                           <span 
                             onClick={() => {
-                              setShowForgotPassword(true);
-                              setForgotError('');
-                              setForgotSuccess('');
+                              setSignupOtpSent(false);
+                              setSignupOtp('');
                             }}
-                            style={{ fontSize: '0.75rem', color: 'var(--accent-gold)', cursor: 'pointer', fontWeight: 500 }}
+                            style={{ fontSize: '0.8rem', color: 'var(--accent-gold)', cursor: 'pointer', fontWeight: 600, textDecoration: 'underline' }}
                           >
-                            Forgot Password?
+                            Change Email / Go Back
                           </span>
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        {isSignup && (
+                          <div>
+                            <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '8px' }}>
+                              Full Name
+                            </label>
+                            <div style={{ position: 'relative' }}>
+                              <User size={16} style={{ position: 'absolute', left: '14px', top: '15px', color: 'var(--text-muted)' }} />
+                              <input 
+                                type="text"
+                                placeholder="John Doe"
+                                value={signupName}
+                                onChange={(e) => setSignupName(e.target.value)}
+                                style={{ width: '100%', padding: '12px 16px 12px 42px', background: 'var(--bg-tertiary)', border: '1px solid var(--border-light)', borderRadius: '12px', color: 'var(--text-primary)', outline: 'none', fontSize: '0.95rem' }}
+                              />
+                            </div>
+                          </div>
                         )}
-                      </div>
-                      <div style={{ position: 'relative' }}>
-                        <Lock size={16} style={{ position: 'absolute', left: '14px', top: '15px', color: 'var(--text-muted)' }} />
-                        <input 
-                          type="password"
-                          placeholder="••••••••"
-                          value={password}
-                          onChange={(e) => setPassword(e.target.value)}
-                          style={{ width: '100%', padding: '12px 16px 12px 42px', background: 'var(--bg-tertiary)', border: '1px solid var(--border-light)', borderRadius: '12px', color: 'var(--text-primary)', outline: 'none', fontSize: '0.95rem' }}
-                        />
-                      </div>
-                    </div>
 
-                    <button 
-                      type="submit" 
-                      className="gold-glow-btn"
-                      style={{ justifyContent: 'center', marginTop: '10px', padding: '12px' }}
-                    >
-                      {isSignup ? 'Create Account' : 'Sign In'}
-                    </button>
+                        <div>
+                          <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '8px' }}>
+                            Email Address
+                          </label>
+                          <div style={{ position: 'relative' }}>
+                            <Mail size={16} style={{ position: 'absolute', left: '14px', top: '15px', color: 'var(--text-muted)' }} />
+                            <input 
+                              type="email"
+                              placeholder="name@domain.com"
+                              value={email}
+                              onChange={(e) => setEmail(e.target.value)}
+                              style={{ width: '100%', padding: '12px 16px 12px 42px', background: 'var(--bg-tertiary)', border: '1px solid var(--border-light)', borderRadius: '12px', color: 'var(--text-primary)', outline: 'none', fontSize: '0.95rem' }}
+                            />
+                          </div>
+                        </div>
+
+                        <div>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                            <label style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
+                              Password
+                            </label>
+                            {!isSignup && (
+                              <span 
+                                onClick={() => {
+                                  setShowForgotPassword(true);
+                                  setForgotError('');
+                                  setForgotSuccess('');
+                                }}
+                                style={{ fontSize: '0.75rem', color: 'var(--accent-gold)', cursor: 'pointer', fontWeight: 500 }}
+                              >
+                                Forgot Password?
+                              </span>
+                            )}
+                          </div>
+                          <div style={{ position: 'relative' }}>
+                            <Lock size={16} style={{ position: 'absolute', left: '14px', top: '15px', color: 'var(--text-muted)' }} />
+                            <input 
+                              type="password"
+                              placeholder="••••••••"
+                              value={password}
+                              onChange={(e) => setPassword(e.target.value)}
+                              style={{ width: '100%', padding: '12px 16px 12px 42px', background: 'var(--bg-tertiary)', border: '1px solid var(--border-light)', borderRadius: '12px', color: 'var(--text-primary)', outline: 'none', fontSize: '0.95rem' }}
+                            />
+                          </div>
+                        </div>
+
+                        <button 
+                          type="submit" 
+                          disabled={isSendingSignupOtp}
+                          className="gold-glow-btn"
+                          style={{ justifyContent: 'center', marginTop: '10px', padding: '12px' }}
+                        >
+                          {isSignup 
+                            ? (isSendingSignupOtp ? 'Sending OTP...' : 'Send Verification OTP') 
+                            : 'Sign In'}
+                        </button>
+                      </>
+                    )}
                   </form>
 
                   <div style={{ textAlign: 'center', marginTop: '16px', fontSize: '0.85rem' }}>
@@ -1986,6 +2061,8 @@ export default function App() {
                       onClick={() => {
                         setIsSignup(!isSignup);
                         setLoginError('');
+                        setSignupOtpSent(false);
+                        setSignupOtp('');
                       }} 
                       style={{ color: 'var(--accent-gold)', cursor: 'pointer', fontWeight: 600, textDecoration: 'underline' }}
                     >

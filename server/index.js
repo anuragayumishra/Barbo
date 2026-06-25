@@ -587,15 +587,92 @@ app.post('/api/auth/login', async (req, res) => {
   }
 });
 
-// 1.5. Auth Signup Route
-app.post('/api/auth/signup', async (req, res) => {
-  const { name, email, password } = req.body;
-  if (!name || !email || !password) {
-    return res.status(400).json({ success: false, message: 'Name, email and password are required' });
+// 1.45. Auth Signup Send OTP Route
+app.post('/api/auth/signup/send-otp', async (req, res) => {
+  const { email } = req.body;
+  if (!email) {
+    return res.status(400).json({ success: false, message: 'Email address is required' });
   }
 
   try {
     const trimmedEmail = email.trim().toLowerCase();
+    
+    // Check if email already in use
+    const [existing] = await pool.query('SELECT id FROM users WHERE email = ?', [trimmedEmail]);
+    if (existing.length > 0) {
+      return res.status(400).json({ success: false, message: 'Email is already registered' });
+    }
+
+    // Generate 6-digit OTP
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes
+
+    // Save/Update in email_verifications
+    await pool.query(
+      `INSERT INTO email_verifications (email, otp, verified, expires_at) 
+       VALUES (?, ?, 0, ?) 
+       ON DUPLICATE KEY UPDATE otp = VALUES(otp), verified = 0, expires_at = VALUES(expires_at)`,
+      [trimmedEmail, otp, expiresAt]
+    );
+
+    // Send OTP email
+    const mailResult = await sendMail({
+      to: trimmedEmail,
+      subject: 'Barbo - Verify Your Email to Sign Up',
+      text: `Your email verification OTP is: ${otp}. It will expire in 5 minutes.`,
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background-color: #0f172a; color: #f8fafc; padding: 30px; border-radius: 12px; border: 1px solid #1e293b;">
+          <h2 style="color: #d4a359; text-transform: uppercase; margin-bottom: 20px; font-weight: 800;">VERIFY YOUR EMAIL</h2>
+          <p style="font-size: 1rem; color: #cbd5e1; line-height: 1.6;">Thank you for starting your registration with Barbo. To complete your account sign up, please use the following One-Time Password (OTP):</p>
+          <div style="background-color: #1e293b; padding: 15px 30px; border-radius: 8px; text-align: center; margin: 30px 0; border: 1px solid #334155;">
+            <span style="font-size: 2.2rem; font-weight: 800; letter-spacing: 0.15em; color: #d4a359;">${otp}</span>
+          </div>
+          <p style="font-size: 0.85rem; color: #64748b; line-height: 1.5;">This verification code is valid for 5 minutes. If you did not request this code, you can safely ignore this email.</p>
+        </div>
+      `
+    });
+
+    if (mailResult && !mailResult.success) {
+      return res.status(500).json({ success: false, message: `Email delivery failed: ${mailResult.error}` });
+    }
+
+    res.json({ success: true, message: 'Verification OTP sent to your email.' });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// 1.5. Auth Signup Route
+app.post('/api/auth/signup', async (req, res) => {
+  const { name, email, password, otp } = req.body;
+  if (!name || !email || !password || !otp) {
+    return res.status(400).json({ success: false, message: 'Name, email, password and OTP are required' });
+  }
+
+  try {
+    const trimmedEmail = email.trim().toLowerCase();
+    
+    // Check OTP first
+    const [verifications] = await pool.query(
+      'SELECT otp, expires_at FROM email_verifications WHERE email = ?',
+      [trimmedEmail]
+    );
+
+    if (verifications.length === 0) {
+      return res.status(400).json({ success: false, message: 'No verification record found for this email. Please request an OTP first.' });
+    }
+
+    const verification = verifications[0];
+    const expiresAt = new Date(verification.expires_at);
+
+    if (expiresAt < new Date()) {
+      return res.status(400).json({ success: false, message: 'Verification OTP has expired. Please request a new one.' });
+    }
+
+    if (verification.otp !== otp.trim()) {
+      return res.status(400).json({ success: false, message: 'Incorrect OTP. Please enter the correct code.' });
+    }
+
     const [existing] = await pool.query('SELECT id FROM users WHERE email = ?', [trimmedEmail]);
     if (existing.length > 0) {
       return res.status(400).json({ success: false, message: 'Email is already registered' });
@@ -606,6 +683,9 @@ app.post('/api/auth/signup', async (req, res) => {
       'INSERT INTO users (id, email, password, name, role) VALUES (?, ?, ?, ?, ?)',
       [userId, trimmedEmail, password, name.trim(), 'customer']
     );
+
+    // Clean up OTP record
+    await pool.query('DELETE FROM email_verifications WHERE email = ?', [trimmedEmail]);
 
     res.status(201).json({
       success: true,
