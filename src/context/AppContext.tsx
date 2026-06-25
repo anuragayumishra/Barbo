@@ -76,6 +76,20 @@ export interface User {
   barberId?: string; // Links a barber user to their barber profile
 }
 
+export interface LocationChangeRequest {
+  id: number;
+  barberId: string;
+  barberName: string;
+  proposedMapsUrl: string;
+  proposedLat: number;
+  proposedLon: number;
+  reason: string;
+  status: 'pending' | 'approved' | 'rejected';
+  createdAt?: string;
+  currentMapsUrl?: string;
+  currentLocation?: string;
+}
+
 interface AppContextType {
   currentUser: User | null;
   login: (email: string, password: string) => Promise<{ success: boolean; message: string }>;
@@ -88,7 +102,7 @@ interface AppContextType {
   rescheduleAppointment: (appointmentId: string, date: string, startTime: string, serviceIds?: string[]) => Promise<{ success: boolean; message: string }>;
   updateAppointmentStatus: (appointmentId: string, status: 'upcoming' | 'in_progress' | 'completed' | 'cancelled', cancellationReason?: string) => void;
   updateBarberDelay: (barberId: string, delayStatus: string) => void;
-  updateBarberSettings: (barberId: string, settings: { openingTime: string; closingTime: string; workingDays: string; mapsUrl: string; lat?: number; lon?: number }) => Promise<{ success: boolean; message: string }>;
+  updateBarberSettings: (barberId: string, settings: { openingTime: string; closingTime: string; workingDays: string; mapsUrl: string; lat?: number; lon?: number; reason?: string }) => Promise<{ success: boolean; message: string }>;
   updateAppointmentTelemetry: (appointmentId: string, telemetry: Partial<Appointment>) => void;
   startAppointmentWithOtp: (appointmentId: string, otp: string) => Promise<{ success: boolean; message: string }>;
   completeAppointment: (appointmentId: string) => Promise<{ success: boolean; message: string }>;
@@ -123,6 +137,14 @@ interface AppContextType {
   addBarberService: (barberId: string, serviceData: { name: string; price: number; durationMinutes: number; category?: 'men' | 'women' | 'unisex' }) => Promise<{ success: boolean; message: string }>;
   updateBarberService: (barberId: string, serviceId: string, serviceData: { name: string; price: number; durationMinutes: number; category?: 'men' | 'women' | 'unisex' }) => Promise<{ success: boolean; message: string }>;
   deleteBarberService: (barberId: string, serviceId: string) => Promise<{ success: boolean; message: string }>;
+
+  // Admin Shop Management & Location Approvals
+  locationRequests: LocationChangeRequest[];
+  adminFetchBarbers: () => Promise<{ success: boolean; barbers: Barber[] }>;
+  adminEditBarber: (barberId: string, barberData: any) => Promise<{ success: boolean; message: string }>;
+  adminFetchLocationRequests: () => Promise<{ success: boolean; data: LocationChangeRequest[] }>;
+  adminApproveLocationRequest: (requestId: number) => Promise<{ success: boolean; message: string }>;
+  adminRejectLocationRequest: (requestId: number) => Promise<{ success: boolean; message: string }>;
 }
 
 // ==========================================
@@ -547,6 +569,20 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       localStorage.setItem('barbo_appointments', JSON.stringify(appointments));
     }
   }, [appointments, currentUser]);
+
+  const [locationRequests, setLocationRequests] = useState<LocationChangeRequest[]>(() => {
+    const saved = localStorage.getItem('barbo_location_requests');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {}
+    }
+    return [];
+  });
+
+  useEffect(() => {
+    localStorage.setItem('barbo_location_requests', JSON.stringify(locationRequests));
+  }, [locationRequests]);
 
   // Geolocation & Search States
   const [userCoordinates, setUserCoordinatesState] = useState<{ lat: number; lng: number } | null>(() => {
@@ -1074,11 +1110,28 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
   const updateBarberSettings = async (
     barberId: string, 
-    settings: { openingTime: string; closingTime: string; workingDays: string; mapsUrl: string; lat?: number; lon?: number }
+    settings: { openingTime: string; closingTime: string; workingDays: string; mapsUrl: string; lat?: number; lon?: number; reason?: string }
   ) => {
-    setBarbers((prev) =>
-      prev.map((barber) => (barber.id === barberId ? { ...barber, ...settings } : barber))
-    );
+    const activeBarber = barbers.find(b => b.id === barberId);
+    const currentMapsUrl = activeBarber?.mapsUrl || '';
+    const isLocationChanged = settings.mapsUrl.trim().toLowerCase() !== currentMapsUrl.trim().toLowerCase();
+
+    if (isLocationChanged) {
+      // If location changed, update only schedule in local state
+      setBarbers((prev) =>
+        prev.map((barber) => (barber.id === barberId ? { 
+          ...barber, 
+          openingTime: settings.openingTime, 
+          closingTime: settings.closingTime, 
+          workingDays: settings.workingDays 
+        } : barber))
+      );
+    } else {
+      // Otherwise update everything in local state
+      setBarbers((prev) =>
+        prev.map((barber) => (barber.id === barberId ? { ...barber, ...settings } : barber))
+      );
+    }
 
     try {
       const res = await fetch(`${BASE_URL}/barbers/${barberId}/settings`, {
@@ -1086,9 +1139,137 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(settings)
       });
-      return await res.json();
+      const data = await res.json();
+      if (res.ok && data.success && data.locationChangePending) {
+        // Fetch location requests to sync with backend
+        await adminFetchLocationRequests();
+      }
+      return data;
     } catch (e: any) {
-      return { success: false, message: e.message || 'Failed to update settings' };
+      console.warn("Express server offline, running fallback for settings update.");
+      if (isLocationChanged) {
+        // Create mock location request
+        const newReq: LocationChangeRequest = {
+          id: Date.now(),
+          barberId: barberId,
+          barberName: activeBarber?.name || 'Your Salon',
+          proposedMapsUrl: settings.mapsUrl,
+          proposedLat: settings.lat || activeBarber?.lat || 23.2500,
+          proposedLon: settings.lon || activeBarber?.lon || 77.4100,
+          reason: settings.reason || 'Offline location update request',
+          status: 'pending',
+          createdAt: new Date().toISOString().replace('T', ' ').substring(0, 19),
+          currentMapsUrl: currentMapsUrl,
+          currentLocation: activeBarber?.location || ''
+        };
+        setLocationRequests(prev => [newReq, ...prev]);
+        return { 
+          success: true, 
+          message: 'Schedule updated immediately. Location change request submitted for Admin approval (Offline Mock)!', 
+          locationChangePending: true 
+        };
+      }
+      return { success: true, message: 'Settings updated successfully offline!' };
+    }
+  };
+
+  const adminFetchBarbers = async (): Promise<{ success: boolean; barbers: Barber[] }> => {
+    try {
+      const res = await fetch(`${BASE_URL}/barbers`);
+      if (res.ok) {
+        const data = await res.json();
+        setBarbers(data);
+        return { success: true, barbers: data };
+      }
+      return { success: false, barbers: barbers };
+    } catch (err) {
+      console.warn("Server offline, using cached barbers for Admin dashboard.");
+      return { success: true, barbers: barbers };
+    }
+  };
+
+  const adminEditBarber = async (barberId: string, barberData: any): Promise<{ success: boolean; message: string }> => {
+    setBarbers((prev) =>
+      prev.map((barber) => (barber.id === barberId ? { ...barber, ...barberData } : barber))
+    );
+
+    try {
+      const res = await fetch(`${BASE_URL}/admin/barbers/${barberId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(barberData)
+      });
+      const data = await res.json();
+      return data;
+    } catch (e: any) {
+      console.warn("Express server offline, admin edit completed offline.");
+      return { success: true, message: 'Updated salon settings in offline cache!' };
+    }
+  };
+
+  const adminFetchLocationRequests = async (): Promise<{ success: boolean; data: LocationChangeRequest[] }> => {
+    try {
+      const res = await fetch(`${BASE_URL}/admin/location-requests`);
+      if (res.ok) {
+        const result = await res.json();
+        if (result.success) {
+          const mapped = result.data.map((r: any) => ({
+            id: r.id,
+            barberId: r.barber_id,
+            barberName: r.barber_name,
+            proposedMapsUrl: r.proposed_maps_url,
+            proposedLat: Number(r.proposed_lat),
+            proposedLon: Number(r.proposed_lon),
+            reason: r.reason,
+            status: r.status,
+            createdAt: r.created_at,
+            currentMapsUrl: r.current_maps_url,
+            currentLocation: r.current_location
+          }));
+          setLocationRequests(mapped);
+          return { success: true, data: mapped };
+        }
+      }
+      return { success: false, data: locationRequests };
+    } catch (err) {
+      console.warn("Server offline, using cached location requests.");
+      return { success: true, data: locationRequests };
+    }
+  };
+
+  const adminApproveLocationRequest = async (requestId: number): Promise<{ success: boolean; message: string }> => {
+    const reqObj = locationRequests.find(r => r.id === requestId);
+    if (reqObj) {
+      setBarbers(prev => prev.map(b => b.id === reqObj.barberId ? { ...b, mapsUrl: reqObj.proposedMapsUrl, lat: reqObj.proposedLat, lon: reqObj.proposedLon } : b));
+      setLocationRequests(prev => prev.map(r => r.id === requestId ? { ...r, status: 'approved' } : r));
+    }
+
+    try {
+      const res = await fetch(`${BASE_URL}/admin/location-requests/${requestId}/approve`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      });
+      const data = await res.json();
+      return data;
+    } catch (err: any) {
+      console.warn("Server offline, approved request in offline mode.");
+      return { success: true, message: 'Location request approved offline!' };
+    }
+  };
+
+  const adminRejectLocationRequest = async (requestId: number): Promise<{ success: boolean; message: string }> => {
+    setLocationRequests(prev => prev.map(r => r.id === requestId ? { ...r, status: 'rejected' } : r));
+
+    try {
+      const res = await fetch(`${BASE_URL}/admin/location-requests/${requestId}/reject`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      });
+      const data = await res.json();
+      return data;
+    } catch (err: any) {
+      console.warn("Server offline, rejected request in offline mode.");
+      return { success: true, message: 'Location request rejected offline!' };
     }
   };
 
@@ -1753,7 +1934,15 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         // Barber Service Management
         addBarberService,
         updateBarberService,
-        deleteBarberService
+        deleteBarberService,
+
+        // Admin Shop Management & Location Approvals
+        locationRequests,
+        adminFetchBarbers,
+        adminEditBarber,
+        adminFetchLocationRequests,
+        adminApproveLocationRequest,
+        adminRejectLocationRequest
       }}
     >
       {children}

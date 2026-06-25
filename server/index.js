@@ -23,7 +23,10 @@ try {
     auth: {
       user: process.env.SMTP_USER || '',
       pass: process.env.SMTP_PASS || ''
-    }
+    },
+    connectionTimeout: 8000, // 8 seconds
+    greetingTimeout: 8000,
+    socketTimeout: 10000
   });
 } catch (err) {
   console.warn("⚠️ Failed to initialize SMTP transporter:", err.message);
@@ -63,8 +66,43 @@ const sendMail = async ({ to, subject, text, html }) => {
     console.error("Error writing mock sent_emails.json log:", e.message);
   }
 
-  // 3. Send real email if SMTP credentials exist in .env
-  if (process.env.SMTP_USER && process.env.SMTP_PASS) {
+  // 3. Send real email if SMTP credentials or Brevo API key exists
+  if (process.env.BREVO_API_KEY) {
+    try {
+      console.log(`📡 Sending email via Brevo HTTP API to ${to}...`);
+      const response = await fetch('https://api.brevo.com/v3/smtp/email', {
+        method: 'POST',
+        headers: {
+          'accept': 'application/json',
+          'api-key': process.env.BREVO_API_KEY,
+          'content-type': 'application/json'
+        },
+        body: JSON.stringify({
+          sender: {
+            name: "Barbo Support",
+            email: process.env.SMTP_FROM || process.env.SMTP_USER || "connect.anuragmishra@gmail.com"
+          },
+          to: [{ email: to }],
+          subject: subject,
+          htmlContent: html || text,
+          textContent: text
+        })
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        console.log(`✅ Brevo HTTP email delivered successfully to ${to}. Message ID:`, result.messageId);
+        return { success: true };
+      } else {
+        const errText = await response.text();
+        console.error(`❌ Brevo HTTP API failed for ${to}: status ${response.status} - ${errText}`);
+        return { success: false, error: `Brevo API status ${response.status}: ${errText}` };
+      }
+    } catch (apiErr) {
+      console.error(`❌ Brevo HTTP API failed for ${to} with error:`, apiErr.message);
+      return { success: false, error: apiErr.message };
+    }
+  } else if (process.env.SMTP_USER && process.env.SMTP_PASS) {
     try {
       await transporter.sendMail({
         from: `"Barbo Support" <${process.env.SMTP_FROM || process.env.SMTP_USER}>`,
@@ -74,10 +112,13 @@ const sendMail = async ({ to, subject, text, html }) => {
         html
       });
       console.log(`✅ SMTP email delivered successfully to ${to}`);
+      return { success: true };
     } catch (smtpErr) {
       console.error(`❌ SMTP relay delivery failed for ${to}:`, smtpErr.message);
+      return { success: false, error: smtpErr.message };
     }
   }
+  return { success: true, mock: true };
 };
 
 const app = express();
@@ -275,7 +316,7 @@ app.post('/api/onboarding/send-otp', async (req, res) => {
     );
 
     // 4. Send email
-    await sendMail({
+    const mailResult = await sendMail({
       to: trimmedEmail,
       subject: 'Barbo Onboarding - Verify Your Email',
       text: `Your email verification OTP is: ${otp}. It will expire in 5 minutes.`,
@@ -290,6 +331,10 @@ app.post('/api/onboarding/send-otp', async (req, res) => {
         </div>
       `
     });
+
+    if (mailResult && !mailResult.success) {
+      return res.status(500).json({ success: false, message: `Email delivery failed: ${mailResult.error}` });
+    }
 
     res.json({ success: true, message: 'Verification OTP sent successfully!' });
   } catch (err) {
@@ -369,7 +414,7 @@ app.post('/api/auth/forgot-password/send-otp', async (req, res) => {
     );
 
     // Send OTP email
-    await sendMail({
+    const mailResult = await sendMail({
       to: trimmedEmail,
       subject: 'Barbo - Reset Password OTP',
       text: `Hello ${userName}, your password reset OTP is: ${otp}. It will expire in 5 minutes.`,
@@ -385,6 +430,10 @@ app.post('/api/auth/forgot-password/send-otp', async (req, res) => {
         </div>
       `
     });
+
+    if (mailResult && !mailResult.success) {
+      return res.status(500).json({ success: false, message: `Email delivery failed: ${mailResult.error}` });
+    }
 
     res.json({ success: true, message: 'Password reset OTP sent to your email.' });
   } catch (err) {
@@ -1326,9 +1375,50 @@ app.put('/api/barbers/:id/settings', async (req, res) => {
   }
 
   try {
-    const resolved = await resolveMapsUrlAndCoords(mapsUrl, lat, lon);
+    // 1. Fetch current barber settings to check if location (mapsUrl) changed
+    const [barberRows] = await pool.query('SELECT maps_url FROM barbers WHERE id = ?', [id]);
+    if (barberRows.length === 0) {
+      return res.status(404).json({ success: false, message: 'Barber profile not found' });
+    }
 
-    const [result] = await pool.query(
+    const currentMapsUrl = barberRows[0].maps_url;
+    const isLocationChanged = mapsUrl.trim().toLowerCase() !== currentMapsUrl.trim().toLowerCase();
+
+    if (isLocationChanged) {
+      // If location changed, require reason
+      const { reason } = req.body;
+      if (!reason || !reason.trim()) {
+        return res.status(400).json({ success: false, message: 'Reason for location change is required' });
+      }
+
+      // Resolve proposed coordinates
+      const resolved = await resolveMapsUrlAndCoords(mapsUrl, lat, lon);
+
+      // Insert location change request
+      await pool.query(
+        `INSERT INTO location_change_requests (barber_id, proposed_maps_url, proposed_lat, proposed_lon, reason, status)
+         VALUES (?, ?, ?, ?, ?, 'pending')`,
+        [id, resolved.mapsUrl, Number(resolved.lat), Number(resolved.lon), reason.trim()]
+      );
+
+      // Update schedule details immediately, but leave location unchanged in barbers table
+      await pool.query(
+        `UPDATE barbers 
+         SET opening_time = ?, closing_time = ?, working_days = ? 
+         WHERE id = ?`,
+        [openingTime, closingTime, workingDays, id]
+      );
+
+      return res.json({ 
+        success: true, 
+        message: 'Schedule updated immediately. Location change request submitted for Admin approval!',
+        locationChangePending: true 
+      });
+    }
+
+    // If location did not change, update settings directly
+    const resolved = await resolveMapsUrlAndCoords(mapsUrl, lat, lon);
+    await pool.query(
       `UPDATE barbers 
        SET opening_time = ?, closing_time = ?, working_days = ?, maps_url = ?, lat = ?, lon = ? 
        WHERE id = ?`,
@@ -1343,11 +1433,136 @@ app.put('/api/barbers/:id/settings', async (req, res) => {
       ]
     );
 
+    res.json({ success: true, message: 'Shop settings updated successfully!' });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// 9.06 Admin Barber Profile Management Endpoint
+app.put('/api/admin/barbers/:id', async (req, res) => {
+  const { id } = req.params;
+  const { name, title, specialty, openingTime, closingTime, workingDays, mapsUrl, lat, lon, location } = req.body;
+
+  if (!name || !title || !specialty || !openingTime || !closingTime || !workingDays || !mapsUrl) {
+    return res.status(400).json({ success: false, message: 'Missing required salon details' });
+  }
+
+  // Validate Google Maps URL format
+  const isGoogleMaps = (url) => {
+    const trimmed = url.trim();
+    if (!trimmed.startsWith('http://') && !trimmed.startsWith('https://')) return false;
+    return /google\..*\/maps/i.test(trimmed) || 
+           /maps\.app\.goo\.gl/i.test(trimmed) || 
+           /goo\.gl\/maps/i.test(trimmed);
+  };
+  if (!isGoogleMaps(mapsUrl)) {
+    return res.status(400).json({ success: false, message: 'Invalid Google Maps URL link' });
+  }
+
+  try {
+    const resolved = await resolveMapsUrlAndCoords(mapsUrl, lat, lon);
+    const finalLocation = location || resolved.mapsUrl;
+
+    const [result] = await pool.query(
+      `UPDATE barbers 
+       SET name = ?, title = ?, specialty = ?, opening_time = ?, closing_time = ?, working_days = ?, maps_url = ?, lat = ?, lon = ?, location = ?
+       WHERE id = ?`,
+      [
+        name,
+        title,
+        specialty,
+        openingTime,
+        closingTime,
+        workingDays,
+        resolved.mapsUrl,
+        Number(resolved.lat),
+        Number(resolved.lon),
+        finalLocation,
+        id
+      ]
+    );
+
     if (result.affectedRows === 0) {
       return res.status(404).json({ success: false, message: 'Barber profile not found' });
     }
 
-    res.json({ success: true, message: 'Shop settings updated successfully!' });
+    res.json({ success: true, message: 'Salon details updated successfully by Admin!' });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// 9.07 Admin: Fetch all location change requests
+app.get('/api/admin/location-requests', async (req, res) => {
+  try {
+    const [rows] = await pool.query(
+      `SELECT r.*, b.name AS barber_name, b.maps_url AS current_maps_url, b.location AS current_location
+       FROM location_change_requests r
+       JOIN barbers b ON r.barber_id = b.id
+       ORDER BY r.created_at DESC`
+    );
+    res.json({ success: true, data: rows });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// 9.08 Admin: Approve a location change request
+app.post('/api/admin/location-requests/:id/approve', async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    const [requestRows] = await pool.query('SELECT * FROM location_change_requests WHERE id = ?', [id]);
+    if (requestRows.length === 0) {
+      return res.status(404).json({ success: false, message: 'Location request not found' });
+    }
+    const request = requestRows[0];
+
+    if (request.status !== 'pending') {
+      return res.status(400).json({ success: false, message: `Request is already ${request.status}` });
+    }
+
+    // Update barber profile with proposed location details
+    await pool.query(
+      `UPDATE barbers 
+       SET maps_url = ?, lat = ?, lon = ? 
+       WHERE id = ?`,
+      [request.proposed_maps_url, request.proposed_lat, request.proposed_lon, request.barber_id]
+    );
+
+    // Mark request as approved
+    await pool.query(
+      `UPDATE location_change_requests SET status = 'approved' WHERE id = ?`,
+      [id]
+    );
+
+    res.json({ success: true, message: 'Location change request approved and applied successfully!' });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// 9.09 Admin: Reject a location change request
+app.post('/api/admin/location-requests/:id/reject', async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    const [requestRows] = await pool.query('SELECT status FROM location_change_requests WHERE id = ?', [id]);
+    if (requestRows.length === 0) {
+      return res.status(404).json({ success: false, message: 'Location request not found' });
+    }
+
+    if (requestRows[0].status !== 'pending') {
+      return res.status(400).json({ success: false, message: `Request is already ${requestRows[0].status}` });
+    }
+
+    await pool.query(
+      `UPDATE location_change_requests SET status = 'rejected' WHERE id = ?`,
+      [id]
+    );
+
+    res.json({ success: true, message: 'Location change request rejected.' });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }

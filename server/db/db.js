@@ -218,6 +218,22 @@ const runAutoMigrations = async () => {
       )
     `);
 
+    // 11. location_change_requests table for barber relocation requests
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS location_change_requests (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        barber_id VARCHAR(50) NOT NULL,
+        proposed_maps_url VARCHAR(500) NOT NULL,
+        proposed_lat DECIMAL(9,6) NOT NULL,
+        proposed_lon DECIMAL(9,6) NOT NULL,
+        reason TEXT NOT NULL,
+        status ENUM('pending', 'approved', 'rejected') NOT NULL DEFAULT 'pending',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        FOREIGN KEY (barber_id) REFERENCES barbers(id) ON DELETE CASCADE
+      )
+    `);
+
     console.log('✅ Auto-migrations completed successfully!');
   } catch (err) {
     console.error('⚠️ Auto-migrations failed:', err.message);
