@@ -422,6 +422,7 @@ export default function App() {
       setSettingsClosingTime(activeBarber.closingTime || '21:00');
       setSettingsWorkingDays(activeBarber.workingDays ? activeBarber.workingDays.split(',') : ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']);
       setSettingsMapsUrl(activeBarber.mapsUrl || '');
+      setLocationChangeReason('');
     }
   }, [activeBarberId, activeBarber, currentUser]);
 
@@ -554,6 +555,7 @@ export default function App() {
   const [settingsClosingTime, setSettingsClosingTime] = useState('');
   const [settingsWorkingDays, setSettingsWorkingDays] = useState<string[]>([]);
   const [settingsMapsUrl, setSettingsMapsUrl] = useState('');
+  const [locationChangeReason, setLocationChangeReason] = useState('');
   const [isSavingSettings, setIsSavingSettings] = useState(false);
   const [editingServiceId, setEditingServiceId] = useState<string | null>(null);
   const [editServiceName, setEditServiceName] = useState('');
@@ -3523,6 +3525,23 @@ export default function App() {
                     />
                   </div>
 
+                  {/* Reason for location change (Only if maps URL changed) */}
+                  {settingsMapsUrl.trim().toLowerCase() !== (activeBarber?.mapsUrl || '').trim().toLowerCase() && (
+                    <div style={{ marginTop: '12px' }} className="animate-fade-in">
+                      <label style={{ display: 'block', fontSize: '0.78rem', color: 'var(--accent-gold)', marginBottom: '6px', fontWeight: 600 }}>
+                        Reason for Location Change * (Requires Admin Approval)
+                      </label>
+                      <textarea
+                        value={locationChangeReason}
+                        onChange={(e) => setLocationChangeReason(e.target.value)}
+                        placeholder="e.g. Relocating to a larger space with more seats."
+                        rows={3}
+                        style={{ width: '100%', padding: '10px', background: 'var(--bg-tertiary)', border: '1px solid var(--border-light)', borderRadius: '8px', color: 'var(--text-primary)', outline: 'none', fontSize: '0.85rem', resize: 'none' }}
+                        required
+                      />
+                    </div>
+                  )}
+
                   {/* Save button */}
                   <button 
                     type="button" 
@@ -3547,6 +3566,12 @@ export default function App() {
                       };
                       if (!isGoogleMaps(settingsMapsUrl)) {
                         showToast('Please enter a valid Google Maps link.');
+                        return;
+                      }
+
+                      const isLocationChanged = settingsMapsUrl.trim().toLowerCase() !== (activeBarber?.mapsUrl || '').trim().toLowerCase();
+                      if (isLocationChanged && !locationChangeReason.trim()) {
+                        showToast('Reason for location change is required.');
                         return;
                       }
 
@@ -3576,13 +3601,17 @@ export default function App() {
                         workingDays: settingsWorkingDays.join(','),
                         mapsUrl: settingsMapsUrl.trim(),
                         lat: parsedLat,
-                        lon: parsedLon
+                        lon: parsedLon,
+                        reason: isLocationChanged ? locationChangeReason.trim() : undefined
                       });
 
                       setIsSavingSettings(false);
 
                       if (res.success) {
-                        showToast('Settings saved successfully!');
+                        showToast(res.message || 'Settings saved successfully!');
+                        if (isLocationChanged) {
+                          setLocationChangeReason('');
+                        }
                       } else {
                         showToast(res.message || 'Failed to save settings.');
                       }
