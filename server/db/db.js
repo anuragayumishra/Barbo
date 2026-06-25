@@ -208,6 +208,16 @@ const runAutoMigrations = async () => {
       `);
     }
 
+    // 10. email_verifications table for onboarding/password reset email OTP
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS email_verifications (
+        email VARCHAR(100) PRIMARY KEY,
+        otp VARCHAR(10) NOT NULL,
+        verified TINYINT(1) DEFAULT 0,
+        expires_at TIMESTAMP NOT NULL
+      )
+    `);
+
     console.log('✅ Auto-migrations completed successfully!');
   } catch (err) {
     console.error('⚠️ Auto-migrations failed:', err.message);

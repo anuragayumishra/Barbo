@@ -4,8 +4,81 @@ import dotenv from 'dotenv';
 import pool from './db/db.js';
 import http from 'http';
 import https from 'https';
+import nodemailer from 'nodemailer';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
 
 dotenv.config();
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+// Nodemailer SMTP Transporter Setup
+let transporter;
+try {
+  transporter = nodemailer.createTransport({
+    host: process.env.SMTP_HOST || 'smtp.ethereal.email',
+    port: Number(process.env.SMTP_PORT) || 587,
+    secure: process.env.SMTP_SECURE === 'true',
+    auth: {
+      user: process.env.SMTP_USER || '',
+      pass: process.env.SMTP_PASS || ''
+    }
+  });
+} catch (err) {
+  console.warn("⚠️ Failed to initialize SMTP transporter:", err.message);
+}
+
+// Mail Dispatcher Helper (Console Logging + JSON Local Log File + Real SMTP fallback)
+const sendMail = async ({ to, subject, text, html }) => {
+  const timestamp = new Date().toISOString();
+  const emailLog = { timestamp, to, subject, text, html };
+  
+  // 1. Visually stunning console logging
+  console.log(`\n==================================================`);
+  console.log(`📧 DISPATCHING EMAIL (${timestamp})`);
+  console.log(`To: ${to}`);
+  console.log(`Subject: ${subject}`);
+  console.log(`Body: ${text}`);
+  console.log(`==================================================\n`);
+
+  // 2. Append email details to a local mock mailbox file for local testing retrieval
+  const logDir = path.join(__dirname, 'db');
+  if (!fs.existsSync(logDir)) {
+    fs.mkdirSync(logDir, { recursive: true });
+  }
+  const logFile = path.join(logDir, 'sent_emails.json');
+  let logs = [];
+  try {
+    if (fs.existsSync(logFile)) {
+      logs = JSON.parse(fs.readFileSync(logFile, 'utf8'));
+    }
+  } catch (e) {
+    // File empty or malformed
+  }
+  logs.push(emailLog);
+  try {
+    fs.writeFileSync(logFile, JSON.stringify(logs, null, 2), 'utf8');
+  } catch (e) {
+    console.error("Error writing mock sent_emails.json log:", e.message);
+  }
+
+  // 3. Send real email if SMTP credentials exist in .env
+  if (process.env.SMTP_USER && process.env.SMTP_PASS) {
+    try {
+      await transporter.sendMail({
+        from: `"Barbo Support" <${process.env.SMTP_FROM || process.env.SMTP_USER}>`,
+        to,
+        subject,
+        text,
+        html
+      });
+      console.log(`✅ SMTP email delivered successfully to ${to}`);
+    } catch (smtpErr) {
+      console.error(`❌ SMTP relay delivery failed for ${to}:`, smtpErr.message);
+    }
+  }
+};
 
 const app = express();
 const PORT = process.env.PORT || 5001;
@@ -168,8 +241,233 @@ const resolveMapsUrlAndCoords = async (mapsUrl, currentLat, currentLon) => {
 };
 
 // ==========================================
-// API REST ENDPOINTS
+// EMAIL OTP & SECURITY REST ENDPOINTS
 // ==========================================
+
+// A. Send Onboarding Verification OTP
+app.post('/api/onboarding/send-otp', async (req, res) => {
+  const { email } = req.body;
+  if (!email) {
+    return res.status(400).json({ success: false, message: 'Email address is required' });
+  }
+
+  try {
+    const trimmedEmail = email.trim().toLowerCase();
+    
+    // 1. Check if email is already in use by an approved user or approved application
+    const [userRows] = await pool.query('SELECT id FROM users WHERE email = ?', [trimmedEmail]);
+    const [appRows] = await pool.query('SELECT id FROM barber_applications WHERE email = ? AND status = "approved"', [trimmedEmail]);
+    
+    if (userRows.length > 0 || appRows.length > 0) {
+      return res.status(400).json({ success: false, message: 'An approved salon account with this email already exists.' });
+    }
+
+    // 2. Generate 6-digit OTP
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes from now
+
+    // 3. Save/Update OTP record
+    await pool.query(
+      `INSERT INTO email_verifications (email, otp, verified, expires_at) 
+       VALUES (?, ?, 0, ?) 
+       ON DUPLICATE KEY UPDATE otp = VALUES(otp), verified = 0, expires_at = VALUES(expires_at)`,
+      [trimmedEmail, otp, expiresAt]
+    );
+
+    // 4. Send email
+    await sendMail({
+      to: trimmedEmail,
+      subject: 'Barbo Onboarding - Verify Your Email',
+      text: `Your email verification OTP is: ${otp}. It will expire in 5 minutes.`,
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background-color: #0f172a; color: #f8fafc; padding: 30px; border-radius: 12px; border: 1px solid #1e293b;">
+          <h2 style="color: #d4a359; text-transform: uppercase; margin-bottom: 20px; font-weight: 800;">BARBO PARTNER ONBOARDING</h2>
+          <p style="font-size: 1rem; color: #cbd5e1; line-height: 1.6;">Thank you for initiating your onboarding application with Barbo. To verify your email address, please use the following One-Time Password (OTP):</p>
+          <div style="background-color: #1e293b; padding: 15px 30px; border-radius: 8px; text-align: center; margin: 30px 0; border: 1px solid #334155;">
+            <span style="font-size: 2.2rem; font-weight: 800; letter-spacing: 0.15em; color: #d4a359;">${otp}</span>
+          </div>
+          <p style="font-size: 0.85rem; color: #64748b; line-height: 1.5;">This verification code is confidential and will expire in 5 minutes. If you did not request this OTP, please ignore this email.</p>
+        </div>
+      `
+    });
+
+    res.json({ success: true, message: 'Verification OTP sent successfully!' });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// B. Verify Onboarding OTP
+app.post('/api/onboarding/verify-otp', async (req, res) => {
+  const { email, otp } = req.body;
+  if (!email || !otp) {
+    return res.status(400).json({ success: false, message: 'Email and OTP are required' });
+  }
+
+  try {
+    const trimmedEmail = email.trim().toLowerCase();
+    const [rows] = await pool.query(
+      'SELECT otp, expires_at FROM email_verifications WHERE email = ?',
+      [trimmedEmail]
+    );
+
+    if (rows.length === 0) {
+      return res.status(400).json({ success: false, message: 'No verification request found for this email.' });
+    }
+
+    const record = rows[0];
+    const expiresAt = new Date(record.expires_at);
+
+    if (expiresAt < new Date()) {
+      return res.status(400).json({ success: false, message: 'Verification OTP has expired. Please request a new one.' });
+    }
+
+    if (record.otp !== otp.trim()) {
+      return res.status(400).json({ success: false, message: 'Incorrect OTP. Please enter the correct code.' });
+    }
+
+    // Mark as verified
+    await pool.query(
+      'UPDATE email_verifications SET verified = 1 WHERE email = ?',
+      [trimmedEmail]
+    );
+
+    res.json({ success: true, message: 'Email verified successfully!' });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// C. Send Password Reset OTP (Forgot Password)
+app.post('/api/auth/forgot-password/send-otp', async (req, res) => {
+  const { email } = req.body;
+  if (!email) {
+    return res.status(400).json({ success: false, message: 'Email address is required' });
+  }
+
+  try {
+    const trimmedEmail = email.trim().toLowerCase();
+    
+    // Check if user account exists
+    const [userRows] = await pool.query('SELECT name FROM users WHERE email = ?', [trimmedEmail]);
+    if (userRows.length === 0) {
+      return res.status(404).json({ success: false, message: 'No registered user found with this email address.' });
+    }
+
+    const userName = userRows[0].name;
+
+    // Generate 6-digit OTP
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes
+
+    // Save/Update in email_verifications
+    await pool.query(
+      `INSERT INTO email_verifications (email, otp, verified, expires_at) 
+       VALUES (?, ?, 0, ?) 
+       ON DUPLICATE KEY UPDATE otp = VALUES(otp), verified = 0, expires_at = VALUES(expires_at)`,
+      [trimmedEmail, otp, expiresAt]
+    );
+
+    // Send OTP email
+    await sendMail({
+      to: trimmedEmail,
+      subject: 'Barbo - Reset Password OTP',
+      text: `Hello ${userName}, your password reset OTP is: ${otp}. It will expire in 5 minutes.`,
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background-color: #0f172a; color: #f8fafc; padding: 30px; border-radius: 12px; border: 1px solid #1e293b;">
+          <h2 style="color: #d4a359; text-transform: uppercase; margin-bottom: 20px; font-weight: 800;">BARBO PASSWORD RESET</h2>
+          <p style="font-size: 1rem; color: #cbd5e1; line-height: 1.6;">Hello ${userName},</p>
+          <p style="font-size: 1rem; color: #cbd5e1; line-height: 1.6;">We received a request to reset the password for your Barbo user account. Please use the following One-Time Password (OTP) to complete the reset process:</p>
+          <div style="background-color: #1e293b; padding: 15px 30px; border-radius: 8px; text-align: center; margin: 30px 0; border: 1px solid #334155;">
+            <span style="font-size: 2.2rem; font-weight: 800; letter-spacing: 0.15em; color: #d4a359;">${otp}</span>
+          </div>
+          <p style="font-size: 0.85rem; color: #64748b; line-height: 1.5;">This code is valid for 5 minutes. If you did not request a password reset, you can safely ignore this email.</p>
+        </div>
+      `
+    });
+
+    res.json({ success: true, message: 'Password reset OTP sent to your email.' });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// D. Reset Password With OTP
+app.post('/api/auth/forgot-password/reset', async (req, res) => {
+  const { email, otp, newPassword } = req.body;
+  if (!email || !otp || !newPassword) {
+    return res.status(400).json({ success: false, message: 'Email, OTP, and new password are required' });
+  }
+
+  try {
+    const trimmedEmail = email.trim().toLowerCase();
+    const [rows] = await pool.query(
+      'SELECT otp, expires_at FROM email_verifications WHERE email = ?',
+      [trimmedEmail]
+    );
+
+    if (rows.length === 0) {
+      return res.status(400).json({ success: false, message: 'No verification record found for this email.' });
+    }
+
+    const record = rows[0];
+    const expiresAt = new Date(record.expires_at);
+
+    if (expiresAt < new Date()) {
+      return res.status(400).json({ success: false, message: 'OTP has expired. Please request a new one.' });
+    }
+
+    if (record.otp !== otp.trim()) {
+      return res.status(400).json({ success: false, message: 'Incorrect OTP.' });
+    }
+
+    // Reset password in users table
+    const [result] = await pool.query(
+      'UPDATE users SET password = ? WHERE email = ?',
+      [newPassword, trimmedEmail]
+    );
+
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ success: false, message: 'User account not found.' });
+    }
+
+    // Clean up verification record
+    await pool.query('DELETE FROM email_verifications WHERE email = ?', [trimmedEmail]);
+
+    res.json({ success: true, message: 'Password has been reset successfully! Please log in.' });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// E. Change Password (For Logged In Users)
+app.post('/api/auth/change-password', async (req, res) => {
+  const { email, oldPassword, newPassword } = req.body;
+  if (!email || !oldPassword || !newPassword) {
+    return res.status(400).json({ success: false, message: 'Email, old password, and new password are required' });
+  }
+
+  try {
+    const trimmedEmail = email.trim().toLowerCase();
+    const [rows] = await pool.query('SELECT password FROM users WHERE email = ?', [trimmedEmail]);
+    
+    if (rows.length === 0) {
+      return res.status(404).json({ success: false, message: 'User account not found.' });
+    }
+
+    const currentPassword = rows[0].password;
+    if (currentPassword !== oldPassword) {
+      return res.status(400).json({ success: false, message: 'Incorrect old password.' });
+    }
+
+    // Update password
+    await pool.query('UPDATE users SET password = ? WHERE email = ?', [newPassword, trimmedEmail]);
+
+    res.json({ success: true, message: 'Password updated successfully!' });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
 
 // 1. Auth Login Route
 app.post('/api/auth/login', async (req, res) => {
@@ -1193,6 +1491,20 @@ app.post('/api/onboarding/apply', async (req, res) => {
   }
 
   const trimmedEmail = email.trim().toLowerCase();
+
+  // Enforce OTP Email verification has succeeded
+  try {
+    const [verifyRows] = await pool.query(
+      'SELECT verified FROM email_verifications WHERE email = ? AND verified = 1',
+      [trimmedEmail]
+    );
+    if (verifyRows.length === 0) {
+      return res.status(400).json({ success: false, message: 'Email verification is required. Please verify your email first.' });
+    }
+  } catch (verifyErr) {
+    console.error("Database check for email verification failed:", verifyErr.message);
+  }
+
   const conn = await pool.getConnection();
 
   try {
@@ -1514,18 +1826,20 @@ app.post('/api/admin/applications/:id/approve', async (req, res) => {
 
     // 5. Create Barber User Account
     const userId = `barber-user-${Date.now()}`;
+    const generatedPassword = Math.random().toString(36).substring(2, 10);
     // Insert user (using On Duplicate Key Update to handle edge cases where email already exists in users)
     await conn.query(
       `INSERT INTO users (id, email, password, name, role, barber_id) 
        VALUES (?, ?, ?, ?, 'barber', ?) 
        ON DUPLICATE KEY UPDATE 
          role='barber', 
+         password=VALUES(password),
          barber_id=VALUES(barber_id),
          name=VALUES(name)`,
       [
         userId,
         app.email.trim().toLowerCase(),
-        '123456', // Default password
+        generatedPassword,
         app.owner_name,
         barberId
       ]
@@ -1538,6 +1852,33 @@ app.post('/api/admin/applications/:id/approve', async (req, res) => {
     );
 
     await conn.commit();
+
+    // 7. Send credentials email to the approved barber
+    try {
+      await sendMail({
+        to: app.email.trim().toLowerCase(),
+        subject: 'Welcome to Barbo - Your Salon Application has been Approved!',
+        text: `Congratulations! Your salon "${app.shop_name}" has been approved on Barbo. You can log in using your registered email and the following temporary password: ${generatedPassword}. Please change your password from your settings dashboard after logging in.`,
+        html: `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background-color: #0f172a; color: #f8fafc; padding: 30px; border-radius: 12px; border: 1px solid #1e293b;">
+            <h2 style="color: #d4a359; text-transform: uppercase; margin-bottom: 20px; font-weight: 800;">WELCOME TO BARBO!</h2>
+            <p style="font-size: 1rem; color: #cbd5e1; line-height: 1.6;">Congratulations! Your salon <strong>"${app.shop_name}"</strong> has been approved on Barbo's premium grooming network.</p>
+            <p style="font-size: 1rem; color: #cbd5e1; line-height: 1.6;">Your partner user account has been successfully provisioned. You can access your settings dashboard and manage your salon appointments using the login credentials below:</p>
+            
+            <div style="background-color: #1e293b; padding: 20px; border-radius: 8px; margin: 25px 0; border: 1px solid #334155; font-size: 0.95rem;">
+              <p style="margin: 0 0 10px 0; color: #cbd5e1;"><strong>Portal URL:</strong> <a href="http://localhost:5173" style="color: #d4a359; text-decoration: underline;">Open Barbo App</a></p>
+              <p style="margin: 0 0 10px 0; color: #cbd5e1;"><strong>Email:</strong> ${app.email.trim().toLowerCase()}</p>
+              <p style="margin: 0; color: #cbd5e1;"><strong>Temporary Password:</strong> <strong style="color: #d4a359; font-family: monospace; font-size: 1.1rem;">${generatedPassword}</strong></p>
+            </div>
+            
+            <p style="font-size: 0.9rem; color: #a1a1aa; line-height: 1.5; margin-top: 20px;"><em>Security Notice: Please remember to change your password immediately from your partner settings dashboard after logging in for the first time.</em></p>
+          </div>
+        `
+      });
+    } catch (mailErr) {
+      console.error("Failed to send welcome credentials email:", mailErr.message);
+    }
+
     res.json({ success: true, message: 'Application approved, barber profile and user account created successfully!' });
   } catch (err) {
     await conn.rollback();

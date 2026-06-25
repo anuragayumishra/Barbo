@@ -291,7 +291,12 @@ export default function App() {
     addBarberService,
     updateBarberService,
     deleteBarberService,
-    updateBarberSettings
+    updateBarberSettings,
+    sendOnboardingOtp,
+    verifyOnboardingOtp,
+    sendResetPasswordOtp,
+    resetPasswordWithOtp,
+    changePassword
   } = useApp();
 
   const getLocalDateString = (d: Date = new Date()) => {
@@ -513,6 +518,36 @@ export default function App() {
   const [submittingOnboarding, setSubmittingOnboarding] = useState(false);
   const [onboardingSuccess, setOnboardingSuccess] = useState(false);
   const [onboardingError, setOnboardingError] = useState('');
+
+  // Onboarding OTP States
+  const [onboardingOtp, setOnboardingOtp] = useState('');
+  const [isEmailVerified, setIsEmailVerified] = useState(false);
+  const [showOtpInput, setShowOtpInput] = useState(false);
+  const [isSendingOtp, setIsSendingOtp] = useState(false);
+  const [isVerifyingOtp, setIsVerifyingOtp] = useState(false);
+  const [otpSentMessage, setOtpSentMessage] = useState('');
+  const [otpVerifyMessage, setOtpVerifyMessage] = useState('');
+
+  // Forgot Password / Reset Password States
+  const [showForgotPassword, setShowForgotPassword] = useState(false);
+  const [forgotEmail, setForgotEmail] = useState('');
+  const [forgotOtp, setForgotOtp] = useState('');
+  const [forgotNewPassword, setForgotNewPassword] = useState('');
+  const [forgotConfirmPassword, setForgotConfirmPassword] = useState('');
+  const [isSendingForgotOtp, setIsSendingForgotOtp] = useState(false);
+  const [isResettingPassword, setIsResettingPassword] = useState(false);
+  const [forgotOtpSent, setForgotOtpSent] = useState(false);
+  const [forgotError, setForgotError] = useState('');
+  const [forgotSuccess, setForgotSuccess] = useState('');
+
+  // Change Password States
+  const [showChangePasswordModal, setShowChangePasswordModal] = useState(false);
+  const [oldPassword, setOldPassword] = useState('');
+  const [newPasswordVal, setNewPasswordVal] = useState('');
+  const [confirmNewPassword, setConfirmNewPassword] = useState('');
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
+  const [changePasswordError, setChangePasswordError] = useState('');
+  const [changePasswordSuccess, setChangePasswordSuccess] = useState('');
 
   // Barber Portal Service Management & settings States
   const [portalNewServiceName, setPortalNewServiceName] = useState('');
@@ -771,11 +806,151 @@ export default function App() {
     }
   };
 
+  // Onboarding OTP Event Handlers
+  const handleSendOnboardingOtp = async () => {
+    if (!onboardingEmail.trim()) {
+      setOnboardingError('Please enter an email address first.');
+      return;
+    }
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(onboardingEmail.trim())) {
+      setOnboardingError('Please enter a valid email address.');
+      return;
+    }
+    setIsSendingOtp(true);
+    setOtpSentMessage('');
+    setOnboardingError('');
+    const res = await sendOnboardingOtp(onboardingEmail);
+    setIsSendingOtp(false);
+    if (res.success) {
+      setShowOtpInput(true);
+      setOtpSentMessage(res.message);
+    } else {
+      setOnboardingError(res.message);
+    }
+  };
+
+  const handleVerifyOnboardingOtp = async () => {
+    if (!onboardingOtp.trim()) {
+      setOtpVerifyMessage('Please enter the OTP.');
+      return;
+    }
+    setIsVerifyingOtp(true);
+    setOtpVerifyMessage('');
+    const res = await verifyOnboardingOtp(onboardingEmail, onboardingOtp);
+    setIsVerifyingOtp(false);
+    if (res.success) {
+      setIsEmailVerified(true);
+      setShowOtpInput(false);
+      setOtpSentMessage('');
+      showToast('Email verified successfully!');
+    } else {
+      setOtpVerifyMessage(res.message);
+    }
+  };
+
+  // Forgot Password / Reset Password Handlers
+  const handleSendForgotOtp = async () => {
+    if (!forgotEmail.trim()) {
+      setForgotError('Please enter your email address.');
+      return;
+    }
+    setIsSendingForgotOtp(true);
+    setForgotError('');
+    setForgotSuccess('');
+    const res = await sendResetPasswordOtp(forgotEmail);
+    setIsSendingForgotOtp(false);
+    if (res.success) {
+      setForgotOtpSent(true);
+      setForgotSuccess(res.message);
+    } else {
+      setForgotError(res.message);
+    }
+  };
+
+  const handleResetPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!forgotOtp.trim() || !forgotNewPassword.trim() || !forgotConfirmPassword.trim()) {
+      setForgotError('All fields are required.');
+      return;
+    }
+    if (forgotNewPassword !== forgotConfirmPassword) {
+      setForgotError('Passwords do not match.');
+      return;
+    }
+    if (forgotNewPassword.length < 6) {
+      setForgotError('Password must be at least 6 characters long.');
+      return;
+    }
+    setIsResettingPassword(true);
+    setForgotError('');
+    setForgotSuccess('');
+    const res = await resetPasswordWithOtp(forgotEmail, forgotOtp, forgotNewPassword);
+    setIsResettingPassword(false);
+    if (res.success) {
+      setForgotSuccess(res.message);
+      setTimeout(() => {
+        setShowForgotPassword(false);
+        setForgotEmail('');
+        setForgotOtp('');
+        setForgotNewPassword('');
+        setForgotConfirmPassword('');
+        setForgotOtpSent(false);
+        setForgotSuccess('');
+      }, 2000);
+    } else {
+      setForgotError(res.message);
+    }
+  };
+
+  // Change Password Handler
+  const handleChangePasswordSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!oldPassword.trim() || !newPasswordVal.trim() || !confirmNewPassword.trim()) {
+      setChangePasswordError('All fields are required.');
+      return;
+    }
+    if (newPasswordVal !== confirmNewPassword) {
+      setChangePasswordError('New passwords do not match.');
+      return;
+    }
+    if (newPasswordVal.length < 6) {
+      setChangePasswordError('New password must be at least 6 characters long.');
+      return;
+    }
+    if (!currentUser) {
+      setChangePasswordError('You must be logged in to change password.');
+      return;
+    }
+    setIsChangingPassword(true);
+    setChangePasswordError('');
+    setChangePasswordSuccess('');
+    const res = await changePassword(currentUser.email, oldPassword, newPasswordVal);
+    setIsChangingPassword(false);
+    if (res.success) {
+      setChangePasswordSuccess(res.message);
+      setOldPassword('');
+      setNewPasswordVal('');
+      setConfirmNewPassword('');
+      setTimeout(() => {
+        setShowChangePasswordModal(false);
+        setChangePasswordSuccess('');
+      }, 2000);
+    } else {
+      setChangePasswordError(res.message);
+    }
+  };
+
   // Onboarding Form Submission
   const handleOnboardingSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!onboardingShopName.trim() || !onboardingOwnerName.trim() || !onboardingEmail.trim() || !onboardingContactNumber.trim() || !onboardingLocation.trim()) {
       setOnboardingError('Please fill in all basic shop information.');
+      return;
+    }
+
+    if (!isEmailVerified) {
+      setOnboardingError('Please verify your email address via OTP first.');
       return;
     }
     
@@ -869,6 +1044,9 @@ export default function App() {
       setOnboardingMapsUrl('');
       setOnboardingWorkingDays(['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']);
       setOnboardingServices([]);
+      setOnboardingOtp('');
+      setIsEmailVerified(false);
+      setShowOtpInput(false);
     } else {
       setOnboardingError(res.message);
     }
@@ -1680,7 +1858,13 @@ export default function App() {
             >
               {/* Close Button */}
               <button 
-                onClick={() => setShowLoginModal(false)}
+                onClick={() => {
+                  setShowLoginModal(false);
+                  setShowForgotPassword(false);
+                  setForgotOtpSent(false);
+                  setForgotError('');
+                  setForgotSuccess('');
+                }}
                 style={{ 
                   position: 'absolute', 
                   top: '20px', 
@@ -1694,99 +1878,232 @@ export default function App() {
                 <X size={20} />
               </button>
 
-              {/* Logo Branding */}
-              <div style={{ textAlign: 'center', marginBottom: '24px' }}>
-                <div style={{ display: 'inline-flex', padding: '12px', background: 'var(--accent-gold-glow)', borderRadius: '50%', color: 'var(--accent-gold)', marginBottom: '12px' }}>
-                  <Scissors size={24} />
-                </div>
-                <h2 style={{ fontSize: '1.8rem', textTransform: 'uppercase', letterSpacing: '-0.02em', fontWeight: 800 }}>
-                  BAR<span>BO</span>
-                </h2>
-                <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginTop: '4px' }}>Access your custom portal</p>
-              </div>
-
-              {loginError && (
-                <div style={{ background: 'rgba(239, 68, 68, 0.08)', color: 'var(--status-red)', border: '1px solid rgba(239, 68, 68, 0.15)', padding: '12px', borderRadius: '10px', marginBottom: '20px', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <AlertCircle size={16} style={{ flexShrink: 0 }} />
-                  <span>{loginError}</span>
-                </div>
-              )}
-
-              {/* Form */}
-              <form onSubmit={handleLoginSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                {isSignup && (
-                  <div>
-                    <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '8px' }}>
-                      Full Name
-                    </label>
-                    <div style={{ position: 'relative' }}>
-                      <User size={16} style={{ position: 'absolute', left: '14px', top: '15px', color: 'var(--text-muted)' }} />
-                      <input 
-                        type="text"
-                        placeholder="John Doe"
-                        value={signupName}
-                        onChange={(e) => setSignupName(e.target.value)}
-                        style={{ width: '100%', padding: '12px 16px 12px 42px', background: 'var(--bg-tertiary)', border: '1px solid var(--border-light)', borderRadius: '12px', color: 'var(--text-primary)', outline: 'none', fontSize: '0.95rem' }}
-                      />
+              {showForgotPassword ? (
+                <>
+                  {/* Forgot Password Screen */}
+                  <div style={{ textAlign: 'center', marginBottom: '24px' }}>
+                    <div style={{ display: 'inline-flex', padding: '12px', background: 'var(--accent-gold-glow)', borderRadius: '50%', color: 'var(--accent-gold)', marginBottom: '12px' }}>
+                      <Lock size={24} />
                     </div>
+                    <h2 style={{ fontSize: '1.8rem', textTransform: 'uppercase', letterSpacing: '-0.02em', fontWeight: 800 }}>
+                      Reset <span>Password</span>
+                    </h2>
+                    <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginTop: '4px' }}>Recover your account password</p>
                   </div>
-                )}
 
-                <div>
-                  <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '8px' }}>
-                    Email Address
-                  </label>
-                  <div style={{ position: 'relative' }}>
-                    <Mail size={16} style={{ position: 'absolute', left: '14px', top: '15px', color: 'var(--text-muted)' }} />
-                    <input 
-                      type="email"
-                      placeholder="name@domain.com"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      style={{ width: '100%', padding: '12px 16px 12px 42px', background: 'var(--bg-tertiary)', border: '1px solid var(--border-light)', borderRadius: '12px', color: 'var(--text-primary)', outline: 'none', fontSize: '0.95rem' }}
-                    />
+                  {forgotError && (
+                    <div style={{ background: 'rgba(239, 68, 68, 0.08)', color: 'var(--status-red)', border: '1px solid rgba(239, 68, 68, 0.15)', padding: '12px', borderRadius: '10px', marginBottom: '20px', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <AlertCircle size={16} style={{ flexShrink: 0 }} />
+                      <span>{forgotError}</span>
+                    </div>
+                  )}
+
+                  {forgotSuccess && (
+                    <div style={{ background: 'rgba(34, 197, 94, 0.08)', color: 'var(--status-green)', border: '1px solid rgba(34, 197, 94, 0.15)', padding: '12px', borderRadius: '10px', marginBottom: '20px', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <span>✓ {forgotSuccess}</span>
+                    </div>
+                  )}
+
+                  {!forgotOtpSent ? (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                      <div>
+                        <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '8px' }}>
+                          Email Address
+                        </label>
+                        <div style={{ position: 'relative' }}>
+                          <Mail size={16} style={{ position: 'absolute', left: '14px', top: '15px', color: 'var(--text-muted)' }} />
+                          <input 
+                            type="email"
+                            placeholder="name@domain.com"
+                            value={forgotEmail}
+                            onChange={(e) => setForgotEmail(e.target.value)}
+                            style={{ width: '100%', padding: '12px 16px 12px 42px', background: 'var(--bg-tertiary)', border: '1px solid var(--border-light)', borderRadius: '12px', color: 'var(--text-primary)', outline: 'none', fontSize: '0.95rem' }}
+                          />
+                        </div>
+                      </div>
+                      <button 
+                        onClick={handleSendForgotOtp}
+                        disabled={isSendingForgotOtp}
+                        className="gold-glow-btn"
+                        style={{ justifyContent: 'center', marginTop: '10px', padding: '12px' }}
+                      >
+                        {isSendingForgotOtp ? 'Sending OTP...' : 'Send Reset OTP'}
+                      </button>
+                    </div>
+                  ) : (
+                    <form onSubmit={handleResetPassword} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                      <div>
+                        <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '8px' }}>
+                          Verification OTP
+                        </label>
+                        <input 
+                          type="text"
+                          placeholder="Enter 6-digit OTP"
+                          value={forgotOtp}
+                          onChange={(e) => setForgotOtp(e.target.value)}
+                          style={{ width: '100%', padding: '12px 16px', background: 'var(--bg-tertiary)', border: '1px solid var(--border-light)', borderRadius: '12px', color: 'var(--text-primary)', outline: 'none', fontSize: '0.95rem' }}
+                        />
+                      </div>
+                      <div>
+                        <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '8px' }}>
+                          New Password
+                        </label>
+                        <input 
+                          type="password"
+                          placeholder="At least 6 characters"
+                          value={forgotNewPassword}
+                          onChange={(e) => setForgotNewPassword(e.target.value)}
+                          style={{ width: '100%', padding: '12px 16px', background: 'var(--bg-tertiary)', border: '1px solid var(--border-light)', borderRadius: '12px', color: 'var(--text-primary)', outline: 'none', fontSize: '0.95rem' }}
+                        />
+                      </div>
+                      <div>
+                        <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '8px' }}>
+                          Confirm New Password
+                        </label>
+                        <input 
+                          type="password"
+                          placeholder="Confirm new password"
+                          value={forgotConfirmPassword}
+                          onChange={(e) => setForgotConfirmPassword(e.target.value)}
+                          style={{ width: '100%', padding: '12px 16px', background: 'var(--bg-tertiary)', border: '1px solid var(--border-light)', borderRadius: '12px', color: 'var(--text-primary)', outline: 'none', fontSize: '0.95rem' }}
+                        />
+                      </div>
+                      <button 
+                        type="submit"
+                        disabled={isResettingPassword}
+                        className="gold-glow-btn"
+                        style={{ justifyContent: 'center', marginTop: '10px', padding: '12px' }}
+                      >
+                        {isResettingPassword ? 'Resetting...' : 'Update Password'}
+                      </button>
+                    </form>
+                  )}
+
+                  <div style={{ textAlign: 'center', marginTop: '16px', fontSize: '0.85rem' }}>
+                    <span 
+                      onClick={() => {
+                        setShowForgotPassword(false);
+                        setForgotOtpSent(false);
+                        setForgotError('');
+                        setForgotSuccess('');
+                      }} 
+                      style={{ color: 'var(--accent-gold)', cursor: 'pointer', fontWeight: 600, textDecoration: 'underline' }}
+                    >
+                      Back to Sign In
+                    </span>
                   </div>
-                </div>
-
-                <div>
-                  <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '8px' }}>
-                    Password
-                  </label>
-                  <div style={{ position: 'relative' }}>
-                    <Lock size={16} style={{ position: 'absolute', left: '14px', top: '15px', color: 'var(--text-muted)' }} />
-                    <input 
-                      type="password"
-                      placeholder="••••••••"
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      style={{ width: '100%', padding: '12px 16px 12px 42px', background: 'var(--bg-tertiary)', border: '1px solid var(--border-light)', borderRadius: '12px', color: 'var(--text-primary)', outline: 'none', fontSize: '0.95rem' }}
-                    />
+                </>
+              ) : (
+                <>
+                  {/* Logo Branding */}
+                  <div style={{ textAlign: 'center', marginBottom: '24px' }}>
+                    <div style={{ display: 'inline-flex', padding: '12px', background: 'var(--accent-gold-glow)', borderRadius: '50%', color: 'var(--accent-gold)', marginBottom: '12px' }}>
+                      <Scissors size={24} />
+                    </div>
+                    <h2 style={{ fontSize: '1.8rem', textTransform: 'uppercase', letterSpacing: '-0.02em', fontWeight: 800 }}>
+                      BAR<span>BO</span>
+                    </h2>
+                    <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginTop: '4px' }}>Access your custom portal</p>
                   </div>
-                </div>
 
-                <button 
-                  type="submit" 
-                  className="gold-glow-btn"
-                  style={{ justifyContent: 'center', marginTop: '10px', padding: '12px' }}
-                >
-                  {isSignup ? 'Create Account' : 'Sign In'}
-                </button>
-              </form>
+                  {loginError && (
+                    <div style={{ background: 'rgba(239, 68, 68, 0.08)', color: 'var(--status-red)', border: '1px solid rgba(239, 68, 68, 0.15)', padding: '12px', borderRadius: '10px', marginBottom: '20px', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <AlertCircle size={16} style={{ flexShrink: 0 }} />
+                      <span>{loginError}</span>
+                    </div>
+                  )}
 
-              <div style={{ textAlign: 'center', marginTop: '16px', fontSize: '0.85rem' }}>
-                <span style={{ color: 'var(--text-secondary)' }}>
-                  {isSignup ? 'Already have an account? ' : "Don't have an account? "}
-                </span>
-                <span 
-                  onClick={() => {
-                    setIsSignup(!isSignup);
-                    setLoginError('');
-                  }} 
-                  style={{ color: 'var(--accent-gold)', cursor: 'pointer', fontWeight: 600, textDecoration: 'underline' }}
-                >
-                  {isSignup ? 'Sign In' : 'Sign Up'}
-                </span>
-              </div>
+                  {/* Form */}
+                  <form onSubmit={handleLoginSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                    {isSignup && (
+                      <div>
+                        <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '8px' }}>
+                          Full Name
+                        </label>
+                        <div style={{ position: 'relative' }}>
+                          <User size={16} style={{ position: 'absolute', left: '14px', top: '15px', color: 'var(--text-muted)' }} />
+                          <input 
+                            type="text"
+                            placeholder="John Doe"
+                            value={signupName}
+                            onChange={(e) => setSignupName(e.target.value)}
+                            style={{ width: '100%', padding: '12px 16px 12px 42px', background: 'var(--bg-tertiary)', border: '1px solid var(--border-light)', borderRadius: '12px', color: 'var(--text-primary)', outline: 'none', fontSize: '0.95rem' }}
+                          />
+                        </div>
+                      </div>
+                    )}
+
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '8px' }}>
+                        Email Address
+                      </label>
+                      <div style={{ position: 'relative' }}>
+                        <Mail size={16} style={{ position: 'absolute', left: '14px', top: '15px', color: 'var(--text-muted)' }} />
+                        <input 
+                          type="email"
+                          placeholder="name@domain.com"
+                          value={email}
+                          onChange={(e) => setEmail(e.target.value)}
+                          style={{ width: '100%', padding: '12px 16px 12px 42px', background: 'var(--bg-tertiary)', border: '1px solid var(--border-light)', borderRadius: '12px', color: 'var(--text-primary)', outline: 'none', fontSize: '0.95rem' }}
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                        <label style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
+                          Password
+                        </label>
+                        {!isSignup && (
+                          <span 
+                            onClick={() => {
+                              setShowForgotPassword(true);
+                              setForgotError('');
+                              setForgotSuccess('');
+                            }}
+                            style={{ fontSize: '0.75rem', color: 'var(--accent-gold)', cursor: 'pointer', fontWeight: 500 }}
+                          >
+                            Forgot Password?
+                          </span>
+                        )}
+                      </div>
+                      <div style={{ position: 'relative' }}>
+                        <Lock size={16} style={{ position: 'absolute', left: '14px', top: '15px', color: 'var(--text-muted)' }} />
+                        <input 
+                          type="password"
+                          placeholder="••••••••"
+                          value={password}
+                          onChange={(e) => setPassword(e.target.value)}
+                          style={{ width: '100%', padding: '12px 16px 12px 42px', background: 'var(--bg-tertiary)', border: '1px solid var(--border-light)', borderRadius: '12px', color: 'var(--text-primary)', outline: 'none', fontSize: '0.95rem' }}
+                        />
+                      </div>
+                    </div>
+
+                    <button 
+                      type="submit" 
+                      className="gold-glow-btn"
+                      style={{ justifyContent: 'center', marginTop: '10px', padding: '12px' }}
+                    >
+                      {isSignup ? 'Create Account' : 'Sign In'}
+                    </button>
+                  </form>
+
+                  <div style={{ textAlign: 'center', marginTop: '16px', fontSize: '0.85rem' }}>
+                    <span style={{ color: 'var(--text-secondary)' }}>
+                      {isSignup ? 'Already have an account? ' : "Don't have an account? "}
+                    </span>
+                    <span 
+                      onClick={() => {
+                        setIsSignup(!isSignup);
+                        setLoginError('');
+                      }} 
+                      style={{ color: 'var(--accent-gold)', cursor: 'pointer', fontWeight: 600, textDecoration: 'underline' }}
+                    >
+                      {isSignup ? 'Sign In' : 'Sign Up'}
+                    </span>
+                  </div>
+                </>
+              )}
 
               {/* Quick Credentials Autofill */}
               <div style={{ marginTop: '24px', borderTop: '1px solid var(--border-light)', paddingTop: '16px' }}>
@@ -1964,14 +2281,42 @@ export default function App() {
                           <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '8px' }}>
                             Contact Email (For logins) <span style={{ color: 'var(--status-red)' }}>*</span>
                           </label>
-                          <input 
-                            type="email" 
-                            placeholder="e.g. owner@shop.com"
-                            value={onboardingEmail}
-                            onChange={(e) => setOnboardingEmail(e.target.value)}
-                            style={{ width: '100%', padding: '12px', background: 'var(--bg-tertiary)', border: '1px solid var(--border-light)', borderRadius: '10px', color: 'var(--text-primary)', outline: 'none' }}
-                            required
-                          />
+                          <div style={{ display: 'flex', gap: '8px' }}>
+                            <input 
+                              type="email" 
+                              placeholder="e.g. owner@shop.com"
+                              value={onboardingEmail}
+                              onChange={(e) => {
+                                setOnboardingEmail(e.target.value);
+                                setIsEmailVerified(false);
+                                setShowOtpInput(false);
+                              }}
+                              disabled={isEmailVerified}
+                              style={{ flex: 1, padding: '12px', background: 'var(--bg-tertiary)', border: '1px solid var(--border-light)', borderRadius: '10px', color: 'var(--text-primary)', outline: 'none' }}
+                              required
+                            />
+                            {!isEmailVerified && (
+                              <button
+                                type="button"
+                                onClick={handleSendOnboardingOtp}
+                                disabled={isSendingOtp || !onboardingEmail.trim()}
+                                className="gold-glow-btn"
+                                style={{ padding: '0 16px', fontSize: '0.8rem', whiteSpace: 'nowrap' }}
+                              >
+                                {isSendingOtp ? 'Sending...' : 'Send OTP'}
+                              </button>
+                            )}
+                          </div>
+                          {isEmailVerified && (
+                            <span style={{ fontSize: '0.75rem', color: 'var(--status-green)', marginTop: '4px', display: 'block', fontWeight: 600 }}>
+                              ✓ Email Verified
+                            </span>
+                          )}
+                          {otpSentMessage && (
+                            <span style={{ fontSize: '0.75rem', color: 'var(--accent-gold)', marginTop: '4px', display: 'block' }}>
+                              {otpSentMessage}
+                            </span>
+                          )}
                         </div>
                         <div>
                           <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '8px' }}>
@@ -1987,6 +2332,37 @@ export default function App() {
                           />
                         </div>
                       </div>
+
+                      {showOtpInput && (
+                        <div style={{ background: 'rgba(212, 175, 55, 0.05)', border: '1px solid rgba(212, 175, 55, 0.2)', padding: '16px', borderRadius: '12px', display: 'flex', flexDirection: 'column', gap: '8px', gridColumn: 'span 2' }}>
+                          <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
+                            Enter Email Verification OTP <span style={{ color: 'var(--status-red)' }}>*</span>
+                          </label>
+                          <div style={{ display: 'flex', gap: '8px' }}>
+                            <input
+                              type="text"
+                              placeholder="6-digit OTP code"
+                              value={onboardingOtp}
+                              onChange={(e) => setOnboardingOtp(e.target.value)}
+                              style={{ flex: 1, padding: '10px 12px', background: 'var(--bg-tertiary)', border: '1px solid var(--border-light)', borderRadius: '10px', color: 'var(--text-primary)', outline: 'none' }}
+                            />
+                            <button
+                              type="button"
+                              onClick={handleVerifyOnboardingOtp}
+                              disabled={isVerifyingOtp}
+                              className="gold-glow-btn"
+                              style={{ padding: '0 20px', fontSize: '0.8rem' }}
+                            >
+                              {isVerifyingOtp ? 'Verifying...' : 'Verify'}
+                            </button>
+                          </div>
+                          {otpVerifyMessage && (
+                            <span style={{ fontSize: '0.75rem', color: 'var(--status-red)' }}>
+                              {otpVerifyMessage}
+                            </span>
+                          )}
+                        </div>
+                      )}
 
                       <div>
                         <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '8px' }}>
@@ -2206,7 +2582,7 @@ export default function App() {
                         type="submit" 
                         className="gold-glow-btn"
                         style={{ padding: '14px', justifyContent: 'center', width: '100%', marginTop: '10px' }}
-                        disabled={submittingOnboarding}
+                        disabled={submittingOnboarding || !isEmailVerified}
                       >
                         {submittingOnboarding ? 'Submitting Application...' : 'Submit Partnership Application'}
                       </button>
@@ -2314,8 +2690,8 @@ export default function App() {
                           }}
                         >
                           <p style={{ margin: '0 0 12px 0', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
-                            Congratulations! Your shop has been approved. You can log in as a Barber with:
-                            <br />Email: <strong>{checkedApplication.email}</strong> / Password: <strong>123456</strong>
+                            Congratulations! Your shop has been approved. Your login credentials and password have been sent to your email.
+                            <br />Email: <strong>{checkedApplication.email}</strong>
                           </p>
                           <button 
                             className="gold-glow-btn"
@@ -2323,7 +2699,7 @@ export default function App() {
                             onClick={() => {
                               setShowOnboardingModal(false);
                               setEmail(checkedApplication.email);
-                              setPassword('123456');
+                              setPassword('');
                               setIsSignup(false);
                               setShowLoginModal(true);
                             }}
@@ -2384,6 +2760,18 @@ export default function App() {
               {currentUser.role}
             </span>
           </div>
+
+          <button 
+            className="btn-secondary" 
+            style={{ padding: '6px 12px', fontSize: '0.8rem', display: 'inline-flex', alignItems: 'center', gap: '6px', marginRight: '8px' }}
+            onClick={() => {
+              setShowChangePasswordModal(true);
+              setChangePasswordError('');
+              setChangePasswordSuccess('');
+            }}
+          >
+            <Lock size={12} /> Change Password
+          </button>
 
           <button 
             className="btn-secondary" 
@@ -4857,14 +5245,42 @@ export default function App() {
                         <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '8px' }}>
                           Contact Email (For logins) <span style={{ color: 'var(--status-red)' }}>*</span>
                         </label>
-                        <input 
-                          type="email" 
-                          placeholder="e.g. owner@shop.com"
-                          value={onboardingEmail}
-                          onChange={(e) => setOnboardingEmail(e.target.value)}
-                          style={{ width: '100%', padding: '12px', background: 'var(--bg-tertiary)', border: '1px solid var(--border-light)', borderRadius: '10px', color: 'var(--text-primary)', outline: 'none' }}
-                          required
-                        />
+                        <div style={{ display: 'flex', gap: '8px' }}>
+                          <input 
+                            type="email" 
+                            placeholder="e.g. owner@shop.com"
+                            value={onboardingEmail}
+                            onChange={(e) => {
+                              setOnboardingEmail(e.target.value);
+                              setIsEmailVerified(false);
+                              setShowOtpInput(false);
+                            }}
+                            disabled={isEmailVerified}
+                            style={{ flex: 1, padding: '12px', background: 'var(--bg-tertiary)', border: '1px solid var(--border-light)', borderRadius: '10px', color: 'var(--text-primary)', outline: 'none' }}
+                            required
+                          />
+                          {!isEmailVerified && (
+                            <button
+                              type="button"
+                              onClick={handleSendOnboardingOtp}
+                              disabled={isSendingOtp || !onboardingEmail.trim()}
+                              className="gold-glow-btn"
+                              style={{ padding: '0 16px', fontSize: '0.8rem', whiteSpace: 'nowrap' }}
+                            >
+                              {isSendingOtp ? 'Sending...' : 'Send OTP'}
+                            </button>
+                          )}
+                        </div>
+                        {isEmailVerified && (
+                          <span style={{ fontSize: '0.75rem', color: 'var(--status-green)', marginTop: '4px', display: 'block', fontWeight: 600 }}>
+                            ✓ Email Verified
+                          </span>
+                        )}
+                        {otpSentMessage && (
+                          <span style={{ fontSize: '0.75rem', color: 'var(--accent-gold)', marginTop: '4px', display: 'block' }}>
+                            {otpSentMessage}
+                          </span>
+                        )}
                       </div>
                       <div>
                         <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '8px' }}>
@@ -4880,6 +5296,37 @@ export default function App() {
                         />
                       </div>
                     </div>
+
+                    {showOtpInput && (
+                      <div style={{ background: 'rgba(212, 175, 55, 0.05)', border: '1px solid rgba(212, 175, 55, 0.2)', padding: '16px', borderRadius: '12px', display: 'flex', flexDirection: 'column', gap: '8px', gridColumn: 'span 2' }}>
+                        <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
+                          Enter Email Verification OTP <span style={{ color: 'var(--status-red)' }}>*</span>
+                        </label>
+                        <div style={{ display: 'flex', gap: '8px' }}>
+                          <input
+                            type="text"
+                            placeholder="6-digit OTP code"
+                            value={onboardingOtp}
+                            onChange={(e) => setOnboardingOtp(e.target.value)}
+                            style={{ flex: 1, padding: '10px 12px', background: 'var(--bg-tertiary)', border: '1px solid var(--border-light)', borderRadius: '10px', color: 'var(--text-primary)', outline: 'none' }}
+                          />
+                          <button
+                            type="button"
+                            onClick={handleVerifyOnboardingOtp}
+                            disabled={isVerifyingOtp}
+                            className="gold-glow-btn"
+                            style={{ padding: '0 20px', fontSize: '0.8rem' }}
+                          >
+                            {isVerifyingOtp ? 'Verifying...' : 'Verify'}
+                          </button>
+                        </div>
+                        {otpVerifyMessage && (
+                          <span style={{ fontSize: '0.75rem', color: 'var(--status-red)' }}>
+                            {otpVerifyMessage}
+                          </span>
+                        )}
+                      </div>
+                    )}
 
                     <div>
                       <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '8px' }}>
@@ -5099,7 +5546,7 @@ export default function App() {
                       type="submit" 
                       className="gold-glow-btn"
                       style={{ padding: '14px', justifyContent: 'center', width: '100%', marginTop: '10px' }}
-                      disabled={submittingOnboarding}
+                      disabled={submittingOnboarding || !isEmailVerified}
                     >
                       {submittingOnboarding ? 'Submitting Application...' : 'Submit Partnership Application'}
                     </button>
@@ -5207,8 +5654,8 @@ export default function App() {
                         }}
                       >
                         <p style={{ margin: '0 0 12px 0', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
-                          Congratulations! Your shop has been approved. You can log in as a Barber with:
-                          <br />Email: <strong>{checkedApplication.email}</strong> / Password: <strong>123456</strong>
+                          Congratulations! Your shop has been approved. Your login credentials and password have been sent to your email.
+                          <br />Email: <strong>{checkedApplication.email}</strong>
                         </p>
                         <button 
                           className="gold-glow-btn"
@@ -5216,7 +5663,7 @@ export default function App() {
                           onClick={() => {
                             setShowOnboardingModal(false);
                             setEmail(checkedApplication.email);
-                            setPassword('123456');
+                            setPassword('');
                             setIsSignup(false);
                             setShowLoginModal(true);
                           }}
@@ -5277,6 +5724,111 @@ export default function App() {
                 Confirm Rejection
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Change Password Modal Overlay */}
+      {showChangePasswordModal && (
+        <div className="modal-overlay-backdrop animate-fade-in" onClick={() => setShowChangePasswordModal(false)}>
+          <div 
+            className="glass-card" 
+            style={{ width: '100%', maxWidth: '440px', padding: '40px 32px', position: 'relative' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Close Button */}
+            <button 
+              onClick={() => {
+                setShowChangePasswordModal(false);
+                setOldPassword('');
+                setNewPasswordVal('');
+                setConfirmNewPassword('');
+                setChangePasswordError('');
+                setChangePasswordSuccess('');
+              }}
+              style={{ 
+                position: 'absolute', 
+                top: '20px', 
+                right: '20px', 
+                background: 'transparent', 
+                border: 'none', 
+                color: 'var(--text-secondary)', 
+                cursor: 'pointer' 
+              }}
+            >
+              <X size={20} />
+            </button>
+
+            {/* Title */}
+            <div style={{ textAlign: 'center', marginBottom: '24px' }}>
+              <div style={{ display: 'inline-flex', padding: '12px', background: 'var(--accent-gold-glow)', borderRadius: '50%', color: 'var(--accent-gold)', marginBottom: '12px' }}>
+                <Lock size={24} />
+              </div>
+              <h2 style={{ fontSize: '1.8rem', textTransform: 'uppercase', letterSpacing: '-0.02em', fontWeight: 800 }}>
+                Change <span>Password</span>
+              </h2>
+              <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginTop: '4px' }}>Update your account password</p>
+            </div>
+
+            {changePasswordError && (
+              <div style={{ background: 'rgba(239, 68, 68, 0.08)', color: 'var(--status-red)', border: '1px solid rgba(239, 68, 68, 0.15)', padding: '12px', borderRadius: '10px', marginBottom: '20px', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <AlertCircle size={16} style={{ flexShrink: 0 }} />
+                <span>{changePasswordError}</span>
+              </div>
+            )}
+
+            {changePasswordSuccess && (
+              <div style={{ background: 'rgba(34, 197, 94, 0.08)', color: 'var(--status-green)', border: '1px solid rgba(34, 197, 94, 0.15)', padding: '12px', borderRadius: '10px', marginBottom: '20px', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span>✓ {changePasswordSuccess}</span>
+              </div>
+            )}
+
+            <form onSubmit={handleChangePasswordSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '8px' }}>
+                  Old Password
+                </label>
+                <input 
+                  type="password"
+                  placeholder="Enter old password"
+                  value={oldPassword}
+                  onChange={(e) => setOldPassword(e.target.value)}
+                  style={{ width: '100%', padding: '12px 16px', background: 'var(--bg-tertiary)', border: '1px solid var(--border-light)', borderRadius: '12px', color: 'var(--text-primary)', outline: 'none', fontSize: '0.95rem' }}
+                />
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '8px' }}>
+                  New Password
+                </label>
+                <input 
+                  type="password"
+                  placeholder="At least 6 characters"
+                  value={newPasswordVal}
+                  onChange={(e) => setNewPasswordVal(e.target.value)}
+                  style={{ width: '100%', padding: '12px 16px', background: 'var(--bg-tertiary)', border: '1px solid var(--border-light)', borderRadius: '12px', color: 'var(--text-primary)', outline: 'none', fontSize: '0.95rem' }}
+                />
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '8px' }}>
+                  Confirm New Password
+                </label>
+                <input 
+                  type="password"
+                  placeholder="Confirm new password"
+                  value={confirmNewPassword}
+                  onChange={(e) => setConfirmNewPassword(e.target.value)}
+                  style={{ width: '100%', padding: '12px 16px', background: 'var(--bg-tertiary)', border: '1px solid var(--border-light)', borderRadius: '12px', color: 'var(--text-primary)', outline: 'none', fontSize: '0.95rem' }}
+                />
+              </div>
+              <button 
+                type="submit"
+                disabled={isChangingPassword}
+                className="gold-glow-btn"
+                style={{ justifyContent: 'center', marginTop: '10px', padding: '12px' }}
+              >
+                {isChangingPassword ? 'Updating...' : 'Update Password'}
+              </button>
+            </form>
           </div>
         </div>
       )}

@@ -201,3 +201,12 @@ CREATE TABLE IF NOT EXISTS application_services (
   duration_minutes INT NOT NULL,
   FOREIGN KEY (application_id) REFERENCES barber_applications(id) ON DELETE CASCADE
 );
+
+-- 9. Email OTP Verifications Table
+CREATE TABLE IF NOT EXISTS email_verifications (
+  email VARCHAR(100) PRIMARY KEY,
+  otp VARCHAR(10) NOT NULL,
+  verified TINYINT(1) DEFAULT 0,
+  expires_at TIMESTAMP NOT NULL
+);
+

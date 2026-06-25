@@ -112,6 +112,13 @@ interface AppContextType {
   adminApproveApplication: (id: number) => Promise<{ success: boolean; message: string }>;
   adminRejectApplication: (id: number, feedback: string) => Promise<{ success: boolean; message: string }>;
   
+  // OTP Verification & Password Management
+  sendOnboardingOtp: (email: string) => Promise<{ success: boolean; message: string }>;
+  verifyOnboardingOtp: (email: string, otp: string) => Promise<{ success: boolean; message: string }>;
+  sendResetPasswordOtp: (email: string) => Promise<{ success: boolean; message: string }>;
+  resetPasswordWithOtp: (email: string, otp: string, newPassword: string) => Promise<{ success: boolean; message: string }>;
+  changePassword: (email: string, oldPassword: string, newPassword: string) => Promise<{ success: boolean; message: string }>;
+
   // Barber Service Management
   addBarberService: (barberId: string, serviceData: { name: string; price: number; durationMinutes: number; category?: 'men' | 'women' | 'unisex' }) => Promise<{ success: boolean; message: string }>;
   updateBarberService: (barberId: string, serviceId: string, serviceData: { name: string; price: number; durationMinutes: number; category?: 'men' | 'women' | 'unisex' }) => Promise<{ success: boolean; message: string }>;
@@ -1479,13 +1486,14 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       };
 
       // Add to MOCK_USERS
+      const generatedPassword = Math.random().toString(36).substring(2, 10);
       MOCK_USERS.push({
         email: app.email,
-        pass: '123456', // default
+        pass: generatedPassword,
         user: newUser
       });
 
-      return { success: true, message: 'Application approved and accounts provisioned! (Offline Fallback)' };
+      return { success: true, message: `Application approved and accounts provisioned! (Offline Mode - Temporary Password generated: ${generatedPassword})` };
     }
   };
 
@@ -1505,6 +1513,113 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       console.warn("Express server offline, running fallback local admin application rejection.");
       setMockApplications(prev => prev.map(a => a.id === id ? { ...a, status: 'rejected', rejectionFeedback: feedback } : a));
       return { success: true, message: 'Application rejected with feedback. (Offline Fallback)' };
+    }
+  };
+
+  const sendOnboardingOtp = async (email: string) => {
+    try {
+      const res = await fetch(`${BASE_URL}/onboarding/send-otp`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email })
+      });
+      const data = await res.json();
+      return { success: res.ok && data.success, message: data.message };
+    } catch (err) {
+      console.warn("Express server offline, running fallback email OTP sender.");
+      const trimmedEmail = email.trim().toLowerCase();
+      // Mock validation
+      if (MOCK_USERS.some(u => u.email === trimmedEmail)) {
+        return { success: false, message: 'An approved salon account with this email already exists.' };
+      }
+      return { success: true, message: 'Verification OTP sent successfully! (Offline Fallback - Enter Code 123456)' };
+    }
+  };
+
+  const verifyOnboardingOtp = async (email: string, otp: string) => {
+    try {
+      const res = await fetch(`${BASE_URL}/onboarding/verify-otp`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, otp })
+      });
+      const data = await res.json();
+      return { success: res.ok && data.success, message: data.message };
+    } catch (err) {
+      console.warn("Express server offline, running fallback email OTP verifier.");
+      if (otp.trim() === '123456') {
+        return { success: true, message: 'Email verified successfully! (Offline Fallback)' };
+      }
+      return { success: false, message: 'Incorrect OTP. Use 123456 for offline testing.' };
+    }
+  };
+
+  const sendResetPasswordOtp = async (email: string) => {
+    try {
+      const res = await fetch(`${BASE_URL}/auth/forgot-password/send-otp`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email })
+      });
+      const data = await res.json();
+      return { success: res.ok && data.success, message: data.message };
+    } catch (err) {
+      console.warn("Express server offline, running fallback reset password OTP sender.");
+      const trimmedEmail = email.trim().toLowerCase();
+      const userExists = MOCK_USERS.some(u => u.email === trimmedEmail);
+      if (!userExists) {
+        return { success: false, message: 'No registered user found with this email address.' };
+      }
+      return { success: true, message: 'Password reset OTP sent to your email. (Offline Fallback - Enter Code 123456)' };
+    }
+  };
+
+  const resetPasswordWithOtp = async (email: string, otp: string, newPassword: string) => {
+    try {
+      const res = await fetch(`${BASE_URL}/auth/forgot-password/reset`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, otp, newPassword })
+      });
+      const data = await res.json();
+      return { success: res.ok && data.success, message: data.message };
+    } catch (err) {
+      console.warn("Express server offline, running fallback password reset with OTP.");
+      if (otp.trim() !== '123456') {
+        return { success: false, message: 'Incorrect OTP.' };
+      }
+      const trimmedEmail = email.trim().toLowerCase();
+      const userIdx = MOCK_USERS.findIndex(u => u.email === trimmedEmail);
+      if (userIdx === -1) {
+        return { success: false, message: 'User account not found.' };
+      }
+      // Update password in MOCK_USERS
+      MOCK_USERS[userIdx].pass = newPassword;
+      return { success: true, message: 'Password has been reset successfully! Please log in.' };
+    }
+  };
+
+  const changePassword = async (email: string, oldPassword: string, newPassword: string) => {
+    try {
+      const res = await fetch(`${BASE_URL}/auth/change-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, oldPassword, newPassword })
+      });
+      const data = await res.json();
+      return { success: res.ok && data.success, message: data.message };
+    } catch (err) {
+      console.warn("Express server offline, running fallback password change.");
+      const trimmedEmail = email.trim().toLowerCase();
+      const userIdx = MOCK_USERS.findIndex(u => u.email === trimmedEmail);
+      if (userIdx === -1) {
+        return { success: false, message: 'User account not found.' };
+      }
+      if (MOCK_USERS[userIdx].pass !== oldPassword) {
+        return { success: false, message: 'Incorrect old password.' };
+      }
+      MOCK_USERS[userIdx].pass = newPassword;
+      return { success: true, message: 'Password updated successfully! (Offline Fallback)' };
     }
   };
 
@@ -1628,6 +1743,13 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         adminApproveApplication,
         adminRejectApplication,
         
+        // OTP Verification & Password Management
+        sendOnboardingOtp,
+        verifyOnboardingOtp,
+        sendResetPasswordOtp,
+        resetPasswordWithOtp,
+        changePassword,
+
         // Barber Service Management
         addBarberService,
         updateBarberService,
