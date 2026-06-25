@@ -131,10 +131,12 @@ const runAutoMigrations = async () => {
       `);
     }
 
-    // 6. seed admin user
+    // 6. seed initial default users
     await pool.query(`
       INSERT INTO users (id, email, password, name, role, barber_id) VALUES 
-      ('admin-user', 'admin@barbo.in', '123456', 'System Admin', 'admin', NULL)
+      ('admin-user', 'admin@barbo.in', '123456', 'System Admin', 'admin', NULL),
+      ('cust-aayu', 'aayu@barbo.in', '123456', 'Aayu', 'customer', NULL),
+      ('barber-rajesh', 'rajesh@barbo.in', '123456', 'ScissorsRock Hair Studio', 'barber', 'b1')
       ON DUPLICATE KEY UPDATE 
         email=VALUES(email),
         password=VALUES(password),
