@@ -563,7 +563,7 @@ app.post('/api/auth/login', async (req, res) => {
     const [rows] = await pool.query('SELECT * FROM users WHERE email = ?', [trimmedEmail]);
     
     if (rows.length === 0) {
-      return res.status(401).json({ success: false, message: 'Invalid credentials. Use faizan@barbo.in or rajesh@barbo.in' });
+      return res.status(401).json({ success: false, message: 'Invalid credentials. Use aayu@barbo.in or rajesh@barbo.in' });
     }
 
     const user = rows[0];

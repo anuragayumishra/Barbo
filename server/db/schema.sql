@@ -165,7 +165,7 @@ INSERT INTO barber_portfolio (barber_id, image_url) VALUES
 
 -- Seed Users
 INSERT INTO users (id, email, password, name, role, barber_id) VALUES
-('cust-faizan', 'faizan@barbo.in', '123456', 'Faizan', 'customer', NULL),
+('cust-aayu', 'aayu@barbo.in', '123456', 'Aayu', 'customer', NULL),
 ('barber-rajesh', 'rajesh@barbo.in', '123456', 'ScissorsRock Hair Studio', 'barber', 'b1'),
 ('admin-user', 'admin@barbo.in', '123456', 'System Admin', 'admin', NULL)
 ON DUPLICATE KEY UPDATE email=VALUES(email), password=VALUES(password), name=VALUES(name), role=VALUES(role), barber_id=VALUES(barber_id);

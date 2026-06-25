@@ -414,8 +414,8 @@ const INITIAL_BARBERS: Barber[] = [
 const INITIAL_APPOINTMENTS: Appointment[] = [
   {
     id: 'a-mock-1',
-    customerId: 'cust-faizan',
-    customerName: 'Faizan',
+    customerId: 'cust-aayu',
+    customerName: 'Aayu',
     barberId: 'b1',
     barberName: 'ScissorsRock Hair Studio',
     date: new Date().toISOString().split('T')[0], // Today
@@ -433,28 +433,31 @@ const INITIAL_APPOINTMENTS: Appointment[] = [
   },
   {
     id: 'a-mock-2',
-    customerId: 'cust-faizan',
-    customerName: 'Faizan',
+    customerId: 'cust-aayu',
+    customerName: 'Aayu',
     barberId: 'b1',
     barberName: 'ScissorsRock Hair Studio',
     date: new Date().toISOString().split('T')[0], // Today
-    startTime: '16:30',
-    endTime: '17:10',
+    startTime: '14:30',
+    endTime: '15:20',
     services: [
-      INITIAL_SERVICES[1], // Beard Sculpting (20m - ₹120)
-      INITIAL_SERVICES[3], // Charcoal Detan (30m - ₹300)
+      INITIAL_SERVICES[0], // Luxe Haircut
+      INITIAL_SERVICES[1], // Beard Sculpting
     ],
-    totalPrice: 420,
+    totalPrice: 370,
     totalDuration: 50,
     status: 'upcoming',
-    travelOtp: '8841',
-    notifications: [],
+    travelOtp: '1099',
+    notifications: [
+      'Customer has departed from Jinsi Home.',
+      'Transit simulation running: ETA updated dynamically.'
+    ],
     userLat: 23.2495,
     userLon: 77.4172,
-    barberLat: 23.2425,
-    barberLon: 77.4190,
-    travelLat: 23.2495,
-    travelLon: 77.4172,
+    barberLat: 23.232696,
+    barberLon: 77.429901,
+    travelLat: 23.2425,
+    travelLon: 77.4190,
     travelSimProgress: 0,
     travelDistance: 820,
     travelEta: 6,
@@ -474,12 +477,12 @@ const INITIAL_APPOINTMENTS: Appointment[] = [
 
 const MOCK_USERS: { email: string; pass: string; user: User }[] = [
   {
-    email: 'faizan@barbo.in',
+    email: 'aayu@barbo.in',
     pass: '123456',
     user: {
-      id: 'cust-faizan',
-      email: 'faizan@barbo.in',
-      name: 'Faizan',
+      id: 'cust-aayu',
+      email: 'aayu@barbo.in',
+      name: 'Aayu',
       role: 'customer',
     },
   },
@@ -793,7 +796,7 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       const found = MOCK_USERS.find((u) => u.email === trimmedEmail);
 
       if (!found) {
-        return { success: false, message: 'Invalid credentials. Use faizan@barbo.in or rajesh@barbo.in' };
+        return { success: false, message: 'Invalid credentials. Use aayu@barbo.in or rajesh@barbo.in' };
       }
       if (found.pass !== password) {
         return { success: false, message: 'Incorrect password. Hint: 123456' };

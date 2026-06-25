@@ -2005,11 +2005,11 @@ export default function App() {
                     className="btn-secondary" 
                     style={{ flex: 1, padding: '6px', fontSize: '0.7rem', display: 'flex', flexDirection: 'column', gap: '2px', alignItems: 'center' }}
                     onClick={() => {
-                      handleQuickLogin('faizan@barbo.in');
+                      handleQuickLogin('aayu@barbo.in');
                       setShowLoginModal(false);
                     }}
                   >
-                    <span>Faizan</span>
+                    <span>Aayu</span>
                     <span style={{ fontSize: '0.6rem', color: 'var(--text-muted)' }}>(Customer)</span>
                   </button>
                   <button 
@@ -3591,7 +3591,7 @@ export default function App() {
                       <input 
                         type="range" 
                         min="1" 
-                        max="8" 
+                        max="20" 
                         value={settingsCapacity}
                         onChange={(e) => setSettingsCapacity(Number(e.target.value))}
                         style={{ flexGrow: 1, accentColor: 'var(--accent-gold)' }}
