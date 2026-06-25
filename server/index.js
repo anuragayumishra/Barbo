@@ -1413,10 +1413,10 @@ app.patch('/api/barbers/:id/delay', async (req, res) => {
   }
 });
 
-// 9.05 Update Barber Settings (operating hours, days off, tagline/title, and map URL)
+// 9.05 Update Barber Settings (operating hours, days off, tagline/title, capacity, and map URL)
 app.put('/api/barbers/:id/settings', async (req, res) => {
   const { id } = req.params;
-  const { openingTime, closingTime, workingDays, mapsUrl, lat, lon, title } = req.body;
+  const { openingTime, closingTime, workingDays, mapsUrl, lat, lon, title, chairsCount } = req.body;
 
   if (!openingTime || !closingTime || !workingDays || !mapsUrl) {
     return res.status(400).json({ success: false, message: 'openingTime, closingTime, workingDays, and mapsUrl are required' });
@@ -1438,7 +1438,7 @@ app.put('/api/barbers/:id/settings', async (req, res) => {
 
   try {
     // 1. Fetch current barber settings to check if location (mapsUrl) changed
-    const [barberRows] = await pool.query('SELECT maps_url FROM barbers WHERE id = ?', [id]);
+    const [barberRows] = await pool.query('SELECT maps_url, chairs_count FROM barbers WHERE id = ?', [id]);
     if (barberRows.length === 0) {
       return res.status(404).json({ success: false, message: 'Barber profile not found' });
     }
@@ -1448,6 +1448,8 @@ app.put('/api/barbers/:id/settings', async (req, res) => {
 
     // Tagline/title default or updated value
     const updatedTitle = title ? title.trim() : 'Premium Professional Grooming';
+    // Chairs / capacity count
+    const updatedChairs = chairsCount !== undefined ? Number(chairsCount) : (barberRows[0].chairs_count || 2);
 
     if (isLocationChanged) {
       // If location changed, require reason
@@ -1466,26 +1468,26 @@ app.put('/api/barbers/:id/settings', async (req, res) => {
         [id, resolved.mapsUrl, Number(resolved.lat), Number(resolved.lon), reason.trim()]
       );
 
-      // Update schedule and tagline immediately, but leave location unchanged in barbers table
+      // Update schedule, tagline, and active staff/capacity immediately, but leave location unchanged in barbers table
       await pool.query(
         `UPDATE barbers 
-         SET opening_time = ?, closing_time = ?, working_days = ?, title = ? 
+         SET opening_time = ?, closing_time = ?, working_days = ?, title = ?, chairs_count = ? 
          WHERE id = ?`,
-        [openingTime, closingTime, workingDays, updatedTitle, id]
+        [openingTime, closingTime, workingDays, updatedTitle, updatedChairs, id]
       );
 
       return res.json({ 
         success: true, 
-        message: 'Schedule & tagline updated immediately. Location change request submitted for Admin approval!',
+        message: 'Schedule, capacity & tagline updated immediately. Location change request submitted for Admin approval!',
         locationChangePending: true 
       });
     }
 
-    // If location did not change, update settings directly including tagline
+    // If location did not change, update settings directly including tagline and capacity
     const resolved = await resolveMapsUrlAndCoords(mapsUrl, lat, lon);
     await pool.query(
       `UPDATE barbers 
-       SET opening_time = ?, closing_time = ?, working_days = ?, maps_url = ?, lat = ?, lon = ?, title = ? 
+       SET opening_time = ?, closing_time = ?, working_days = ?, maps_url = ?, lat = ?, lon = ?, title = ?, chairs_count = ? 
        WHERE id = ?`,
       [
         openingTime,
@@ -1495,6 +1497,7 @@ app.put('/api/barbers/:id/settings', async (req, res) => {
         Number(resolved.lat),
         Number(resolved.lon),
         updatedTitle,
+        updatedChairs,
         id
       ]
     );
@@ -2271,6 +2274,62 @@ app.post('/api/admin/applications/:id/reject', async (req, res) => {
     res.status(500).json({ success: false, message: err.message });
   }
 });
+
+// Background notification job: Check every 10 seconds for appointments starting in ~30 minutes
+const notifiedAppointments = new Set();
+setInterval(async () => {
+  try {
+    const now = new Date();
+    // Scan upcoming appointments in next 35 minutes (to cover offsets) but not already notified
+    const [rows] = await pool.query(
+      `SELECT a.*, u.email as customer_email, u.name as customer_name 
+       FROM appointments a
+       JOIN users u ON a.customer_id = u.id
+       WHERE a.status = 'upcoming' AND a.date = ?`,
+      [now.toISOString().split('T')[0]]
+    );
+
+    for (const app of rows) {
+      if (notifiedAppointments.has(app.id)) continue;
+
+      const [sH, sM] = app.start_time.split(':').map(Number);
+      const appTime = new Date(now.getFullYear(), now.getMonth(), now.getDate(), sH, sM, 0);
+      const diffMinutes = (appTime.getTime() - now.getTime()) / (1000 * 60);
+
+      // Trigger if starting in 25 to 30 minutes
+      if (diffMinutes > 0 && diffMinutes <= 30.5) {
+        notifiedAppointments.add(app.id);
+        
+        console.log(`⏰ Triggering 30-min booking reminder email for appointment ${app.id} to ${app.customer_email}`);
+        
+        await sendMail({
+          to: app.customer_email,
+          subject: `Reminder: Your Barbo Booking at ${app.barber_name} is in 30 minutes!`,
+          text: `Hi ${app.customer_name},\n\nThis is a friendly reminder that you have a booking scheduled with ${app.barber_name} today at ${app.start_time}.\n\nLocation: ${app.location || 'Bhopal Shop'}\nOTP for check-in: ${app.travel_otp}\n\nHave a great haircut!\n- Barbo Team`,
+          html: `
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background-color: #0f172a; color: #f8fafc; padding: 30px; border-radius: 12px; border: 1px solid #1e293b;">
+              <h2 style="color: #d4a359; text-transform: uppercase; margin-bottom: 20px; font-weight: 800;">BOOKING REMINDER ⏰</h2>
+              <p style="font-size: 1rem; color: #cbd5e1; line-height: 1.6;">Hi <strong>${app.customer_name}</strong>,</p>
+              <p style="font-size: 1rem; color: #cbd5e1; line-height: 1.6;">Your upcoming grooming appointment at <strong>${app.barber_name}</strong> starts in <strong>30 minutes</strong>.</p>
+              
+              <div style="background-color: #1e293b; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #d4a359;">
+                <p style="margin: 0 0 8px 0; font-size: 0.95rem; color: #94a3b8;">📅 <strong>Date:</strong> ${app.date}</p>
+                <p style="margin: 0 0 8px 0; font-size: 0.95rem; color: #94a3b8;">⏰ <strong>Time:</strong> ${app.start_time} - ${app.end_time}</p>
+                <p style="margin: 0 0 8px 0; font-size: 0.95rem; color: #94a3b8;">📍 <strong>Location:</strong> ${app.location || 'Bhopal Shop'}</p>
+                <p style="margin: 12px 0 0 0; font-size: 1.1rem; color: #f8fafc;">🔑 <strong>Check-In OTP:</strong> <span style="color: #d4a359; font-weight: 700; font-size: 1.3rem; letter-spacing: 2px;">${app.travel_otp}</span></p>
+              </div>
+
+              <p style="font-size: 0.9rem; color: #94a3b8; line-height: 1.5; margin-top: 24px;">Please keep your OTP ready and present it to your stylist upon arrival at the shop to start your service.</p>
+              <p style="font-size: 0.9rem; color: #94a3b8; line-height: 1.5;">See you soon!<br/><strong>Team Barbo</strong></p>
+            </div>
+          `
+        });
+      }
+    }
+  } catch (err) {
+    console.error("Error in background booking reminder cron job:", err.message);
+  }
+}, 10000);
 
 // Start listening
 app.listen(PORT, () => {

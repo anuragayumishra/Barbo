@@ -432,6 +432,7 @@ export default function App() {
       setSettingsWorkingDays(activeBarber.workingDays ? activeBarber.workingDays.split(',') : ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']);
       setSettingsMapsUrl(activeBarber.mapsUrl || '');
       setSettingsTagline(activeBarber.title || 'Premium Professional Grooming');
+      setSettingsCapacity(activeBarber.chairsCount || 2);
       setProfileImageUrlInput(activeBarber.imageUrl || '');
       setLocationChangeReason('');
     }
@@ -567,6 +568,7 @@ export default function App() {
   const [settingsWorkingDays, setSettingsWorkingDays] = useState<string[]>([]);
   const [settingsMapsUrl, setSettingsMapsUrl] = useState('');
   const [settingsTagline, setSettingsTagline] = useState('');
+  const [settingsCapacity, setSettingsCapacity] = useState(2);
   const [locationChangeReason, setLocationChangeReason] = useState('');
   const [isSavingSettings, setIsSavingSettings] = useState(false);
   const [editingServiceId, setEditingServiceId] = useState<string | null>(null);
@@ -3582,6 +3584,27 @@ export default function App() {
                     />
                   </div>
 
+                  {/* Active Barbers/Stylists Count (True Capacity) */}
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.78rem', color: 'var(--text-secondary)', marginBottom: '6px' }}>Active Stylists / Barbers on duty (True Slot Capacity)</label>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                      <input 
+                        type="range" 
+                        min="1" 
+                        max="8" 
+                        value={settingsCapacity}
+                        onChange={(e) => setSettingsCapacity(Number(e.target.value))}
+                        style={{ flexGrow: 1, accentColor: 'var(--accent-gold)' }}
+                      />
+                      <span style={{ fontSize: '0.9rem', color: 'var(--accent-gold)', fontWeight: 600, minWidth: '70px', textAlign: 'right' }}>
+                        {settingsCapacity} Stylist{settingsCapacity > 1 ? 's' : ''}
+                      </span>
+                    </div>
+                    <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)', display: 'block', marginTop: '4px' }}>
+                      This dynamically updates the slot booking limit so offline walk-ins & online bookings don't double-book your shop's staff.
+                    </span>
+                  </div>
+
                   {/* Hours Grid */}
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                     <div>
@@ -3749,7 +3772,8 @@ export default function App() {
                         lat: parsedLat,
                         lon: parsedLon,
                         reason: isLocationChanged ? locationChangeReason.trim() : undefined,
-                        title: settingsTagline.trim()
+                        title: settingsTagline.trim(),
+                        chairsCount: settingsCapacity
                       });
 
                       setIsSavingSettings(false);

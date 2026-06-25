@@ -103,7 +103,7 @@ interface AppContextType {
   rescheduleAppointment: (appointmentId: string, date: string, startTime: string, serviceIds?: string[]) => Promise<{ success: boolean; message: string }>;
   updateAppointmentStatus: (appointmentId: string, status: 'upcoming' | 'in_progress' | 'completed' | 'cancelled', cancellationReason?: string) => void;
   updateBarberDelay: (barberId: string, delayStatus: string) => void;
-  updateBarberSettings: (barberId: string, settings: { openingTime: string; closingTime: string; workingDays: string; mapsUrl: string; lat?: number; lon?: number; reason?: string; title?: string }) => Promise<{ success: boolean; message: string }>;
+  updateBarberSettings: (barberId: string, settings: { openingTime: string; closingTime: string; workingDays: string; mapsUrl: string; lat?: number; lon?: number; reason?: string; title?: string; chairsCount?: number }) => Promise<{ success: boolean; message: string }>;
   updateBarberProfileImage: (barberId: string, url: string) => Promise<{ success: boolean; message: string }>;
   addBarberPortfolioImage: (barberId: string, url: string) => Promise<{ success: boolean; message: string }>;
   deleteBarberPortfolioImage: (barberId: string, url: string) => Promise<{ success: boolean; message: string }>;
@@ -1136,27 +1136,32 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
   const updateBarberSettings = async (
     barberId: string, 
-    settings: { openingTime: string; closingTime: string; workingDays: string; mapsUrl: string; lat?: number; lon?: number; reason?: string; title?: string }
+    settings: { openingTime: string; closingTime: string; workingDays: string; mapsUrl: string; lat?: number; lon?: number; reason?: string; title?: string; chairsCount?: number }
   ) => {
     const activeBarber = barbers.find(b => b.id === barberId);
     const currentMapsUrl = activeBarber?.mapsUrl || '';
     const isLocationChanged = settings.mapsUrl.trim().toLowerCase() !== currentMapsUrl.trim().toLowerCase();
 
     if (isLocationChanged) {
-      // If location changed, update only schedule in local state
+      // If location changed, update only schedule & capacity in local state
       setBarbers((prev) =>
         prev.map((barber) => (barber.id === barberId ? { 
           ...barber, 
           openingTime: settings.openingTime, 
           closingTime: settings.closingTime, 
           workingDays: settings.workingDays,
-          title: settings.title || barber.title
+          title: settings.title || barber.title,
+          chairsCount: settings.chairsCount || barber.chairsCount
         } : barber))
       );
     } else {
       // Otherwise update everything in local state
       setBarbers((prev) =>
-        prev.map((barber) => (barber.id === barberId ? { ...barber, ...settings } : barber))
+        prev.map((barber) => (barber.id === barberId ? { 
+          ...barber, 
+          ...settings,
+          chairsCount: settings.chairsCount || barber.chairsCount
+        } : barber))
       );
     }
 
