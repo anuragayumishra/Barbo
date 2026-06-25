@@ -66,6 +66,7 @@ export interface Appointment {
   travelSimProgress?: number;
   travelRouteCoordinates?: { lat: number; lng: number }[];
   reviewed?: boolean;
+  barberMapsUrl?: string; // Live barber location URL fetched fresh from DB
 }
 
 export interface User {
@@ -149,6 +150,7 @@ interface AppContextType {
   adminFetchLocationRequests: () => Promise<{ success: boolean; data: LocationChangeRequest[] }>;
   adminApproveLocationRequest: (requestId: number) => Promise<{ success: boolean; message: string }>;
   adminRejectLocationRequest: (requestId: number) => Promise<{ success: boolean; message: string }>;
+  uploadImage: (file: File) => Promise<{ success: boolean; url?: string; message?: string }>;
 }
 
 // ==========================================
@@ -1425,6 +1427,21 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     }
   };
 
+  const uploadImage = async (file: File): Promise<{ success: boolean; url?: string; message?: string }> => {
+    try {
+      const formData = new FormData();
+      formData.append('image', file);
+      const res = await fetch(`${BASE_URL}/upload`, {
+        method: 'POST',
+        body: formData // No Content-Type header — browser sets multipart boundary automatically
+      });
+      const data = await res.json();
+      return data;
+    } catch (err: any) {
+      return { success: false, message: 'Upload failed. Check your connection.' };
+    }
+  };
+
   const updateAppointmentTelemetry = async (appointmentId: string, telemetry: Partial<Appointment>) => {
     setAppointments((prev) =>
       prev.map((app) => (app.id === appointmentId ? { ...app, ...telemetry } : app))
@@ -2098,7 +2115,8 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         adminEditBarber,
         adminFetchLocationRequests,
         adminApproveLocationRequest,
-        adminRejectLocationRequest
+        adminRejectLocationRequest,
+        uploadImage
       }}
     >
       {children}

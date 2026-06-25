@@ -8,10 +8,32 @@ import nodemailer from 'nodemailer';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import multer from 'multer';
 
 dotenv.config();
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+// === File Upload Setup (multer) ===
+const uploadsDir = path.join(__dirname, 'uploads');
+if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
+
+const storage = multer.diskStorage({
+  destination: (_req, _file, cb) => cb(null, uploadsDir),
+  filename: (_req, file, cb) => {
+    const ext = path.extname(file.originalname) || '.jpg';
+    cb(null, `img-${Date.now()}-${Math.random().toString(36).slice(2)}${ext}`);
+  }
+});
+const upload = multer({
+  storage,
+  limits: { fileSize: 8 * 1024 * 1024 }, // 8 MB
+  fileFilter: (_req, file, cb) => {
+    if (file.mimetype.startsWith('image/')) cb(null, true);
+    else cb(new Error('Only image files are allowed'));
+  }
+});
+
 
 // Nodemailer SMTP Transporter Setup
 let transporter;
@@ -590,8 +612,20 @@ app.post('/api/auth/signup', async (req, res) => {
   }
 });
 
+// Serve uploaded images as static files
+app.use('/uploads', express.static(uploadsDir));
 
-// 2. Services List Retriever
+// Image Upload Endpoint
+app.post('/api/upload', upload.single('image'), (req, res) => {
+  if (!req.file) {
+    return res.status(400).json({ success: false, message: 'No image file provided' });
+  }
+  const serverBase = process.env.SERVER_URL || `http://localhost:${PORT}`;
+  const imageUrl = `${serverBase}/uploads/${req.file.filename}`;
+  res.json({ success: true, url: imageUrl });
+});
+
+
 app.get('/api/services', async (req, res) => {
   try {
     const [rows] = await pool.query('SELECT id, name, description, price, duration_minutes as durationMinutes, barber_id as barberId, category FROM services');
@@ -749,6 +783,20 @@ app.get('/api/appointments', async (req, res) => {
         );
         const reviewed = reviewRows.length > 0;
 
+        // Fetch LIVE barber location (maps_url, lat, lon) so navigation always uses the latest approved URL
+        let barberMapsUrl = '';
+        let barberLocation = '';
+        try {
+          const [liveBarber] = await pool.query(
+            'SELECT maps_url, lat, lon, location FROM barbers WHERE id = ?',
+            [app.barber_id]
+          );
+          if (liveBarber.length > 0) {
+            barberMapsUrl = liveBarber[0].maps_url || '';
+            barberLocation = liveBarber[0].location || '';
+          }
+        } catch (e) {}
+
         // Clean time format (HH:MM)
         const formatTime = (timeStr) => timeStr ? timeStr.substring(0, 5) : '';
 
@@ -758,6 +806,8 @@ app.get('/api/appointments', async (req, res) => {
           customerName: app.customer_name,
           barberId: app.barber_id,
           barberName: app.barber_name,
+          barberMapsUrl,
+          location: barberLocation,
           date: formatDateLocal(app.date),
           startTime: formatTime(app.start_time),
           endTime: formatTime(app.end_time),
@@ -784,6 +834,7 @@ app.get('/api/appointments', async (req, res) => {
         };
       })
     );
+
 
     res.json(detailedAppointments);
   } catch (err) {

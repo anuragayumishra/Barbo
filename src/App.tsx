@@ -298,7 +298,8 @@ export default function App() {
     verifyOnboardingOtp,
     sendResetPasswordOtp,
     resetPasswordWithOtp,
-    changePassword
+    changePassword,
+    uploadImage
   } = useApp();
 
   const getLocalDateString = (d: Date = new Date()) => {
@@ -569,45 +570,46 @@ export default function App() {
   const [editServicePrice, setEditServicePrice] = useState('');
   const [editServiceDuration, setEditServiceDuration] = useState('');
   const [editServiceCategory, setEditServiceCategory] = useState<'men' | 'women' | 'unisex'>('unisex');
-  const [newPortfolioUrl, setNewPortfolioUrl] = useState('');
   const [profileImageUrlInput, setProfileImageUrlInput] = useState('');
-  const [isSavingProfileImage, setIsSavingProfileImage] = useState(false);
+  const [isUploadingProfileImage, setIsUploadingProfileImage] = useState(false);
+  const [isUploadingPortfolio, setIsUploadingPortfolio] = useState(false);
   const [lightboxImages, setLightboxImages] = useState<string[]>([]);
   const [lightboxIndex, setLightboxIndex] = useState<number>(0);
   const [isLightboxOpen, setIsLightboxOpen] = useState<boolean>(false);
 
-  const handleUpdateProfileImage = async () => {
-    if (!profileImageUrlInput.trim()) {
-      showToast('Please enter a valid image URL.');
+  // Upload and set profile image from a local file
+  const handleProfileImageFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setIsUploadingProfileImage(true);
+    const upload = await uploadImage(file);
+    if (!upload.success || !upload.url) {
+      showToast(upload.message || 'Failed to upload image.');
+      setIsUploadingProfileImage(false);
       return;
     }
-    setIsSavingProfileImage(true);
-    const res = await updateBarberProfileImage(activeBarber.id, profileImageUrlInput.trim());
-    setIsSavingProfileImage(false);
-    if (res.success) {
-      showToast(res.message || 'Profile picture updated successfully!');
-    } else {
-      showToast(res.message || 'Failed to update profile picture.');
-    }
+    setProfileImageUrlInput(upload.url);
+    const res = await updateBarberProfileImage(activeBarber.id, upload.url);
+    setIsUploadingProfileImage(false);
+    showToast(res.message || (res.success ? 'Profile picture updated!' : 'Failed to update profile picture.'));
   };
 
-  const handleAddPortfolioImage = async (urlToAdd: string) => {
-    const url = urlToAdd.trim();
-    if (!url) {
-      showToast('Please enter or select a valid image URL.');
+  // Upload a portfolio image from a local file
+  const handlePortfolioFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setIsUploadingPortfolio(true);
+    const upload = await uploadImage(file);
+    if (!upload.success || !upload.url) {
+      showToast(upload.message || 'Failed to upload image.');
+      setIsUploadingPortfolio(false);
       return;
     }
-    if ((activeBarber.portfolioImages || []).includes(url)) {
-      showToast('This image is already in your portfolio.');
-      return;
-    }
-    const res = await addBarberPortfolioImage(activeBarber.id, url);
-    if (res.success) {
-      showToast(res.message || 'Image added to portfolio!');
-      setNewPortfolioUrl('');
-    } else {
-      showToast(res.message || 'Failed to add image.');
-    }
+    const res = await addBarberPortfolioImage(activeBarber.id, upload.url);
+    setIsUploadingPortfolio(false);
+    showToast(res.message || (res.success ? 'Image added to portfolio!' : 'Failed to add image.'));
+    // Clear file input
+    e.target.value = '';
   };
 
   const handleDeletePortfolioImage = async (url: string) => {
@@ -638,6 +640,16 @@ export default function App() {
     } else {
       showToast('Failed to update position.');
     }
+  };
+
+  // Add portfolio image from a preset URL
+  const handleAddPortfolioPreset = async (presetUrl: string) => {
+    if ((activeBarber.portfolioImages || []).includes(presetUrl)) {
+      showToast('This image is already in your portfolio.');
+      return;
+    }
+    const res = await addBarberPortfolioImage(activeBarber.id, presetUrl);
+    showToast(res.message || (res.success ? 'Image added to portfolio!' : 'Failed to add image.'));
   };
 
 
@@ -3754,33 +3766,37 @@ export default function App() {
                 <div style={{ marginBottom: '24px', paddingBottom: '20px', borderBottom: '1px solid var(--border-light)' }}>
                   <h3 style={{ fontSize: '0.95rem', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '12px' }}>Shop Profile Picture</h3>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-                    <div style={{ width: '64px', height: '64px', borderRadius: '12px', overflow: 'hidden', border: '2px solid var(--accent-gold)', flexShrink: 0, background: 'var(--bg-tertiary)' }}>
+                    <div style={{ width: '72px', height: '72px', borderRadius: '12px', overflow: 'hidden', border: '2px solid var(--accent-gold)', flexShrink: 0, background: 'var(--bg-tertiary)' }}>
                       <img 
-                        src={profileImageUrlInput || 'https://via.placeholder.com/64'} 
+                        src={profileImageUrlInput || activeBarber?.imageUrl || 'https://via.placeholder.com/72?text=Shop'} 
                         alt="Profile Preview" 
                         style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                        onError={(e) => {
-                          (e.target as HTMLImageElement).src = 'https://via.placeholder.com/64?text=No+Image';
-                        }}
+                        onError={(e) => { (e.target as HTMLImageElement).src = 'https://via.placeholder.com/72?text=Shop'; }}
                       />
                     </div>
                     <div style={{ flexGrow: 1, display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                      <input 
-                        type="text"
-                        value={profileImageUrlInput}
-                        onChange={(e) => setProfileImageUrlInput(e.target.value)}
-                        placeholder="Paste image URL here"
-                        style={{ width: '100%', padding: '8px 12px', background: 'var(--bg-tertiary)', border: '1px solid var(--border-light)', borderRadius: '8px', color: 'var(--text-primary)', outline: 'none', fontSize: '0.82rem' }}
-                      />
-                      <button 
-                        type="button"
-                        onClick={handleUpdateProfileImage}
-                        className="gold-glow-btn"
-                        style={{ padding: '8px 16px', fontSize: '0.8rem', alignSelf: 'start', justifyContent: 'center' }}
-                        disabled={isSavingProfileImage}
+                      <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', margin: 0 }}>
+                        Upload a JPG or PNG photo of your shop (max 8 MB).
+                      </p>
+                      <label
+                        style={{
+                          display: 'inline-flex', alignItems: 'center', gap: '6px',
+                          padding: '9px 16px', borderRadius: '8px', fontSize: '0.82rem',
+                          background: isUploadingProfileImage ? 'var(--bg-tertiary)' : 'var(--accent-gold)',
+                          color: isUploadingProfileImage ? 'var(--text-muted)' : '#000',
+                          fontWeight: 600, cursor: isUploadingProfileImage ? 'not-allowed' : 'pointer',
+                          alignSelf: 'start', transition: 'all 0.2s'
+                        }}
                       >
-                        {isSavingProfileImage ? 'Saving...' : 'Update Profile Pic'}
-                      </button>
+                        {isUploadingProfileImage ? '⏳ Uploading...' : '📷 Choose Photo'}
+                        <input
+                          type="file"
+                          accept="image/*"
+                          style={{ display: 'none' }}
+                          disabled={isUploadingProfileImage}
+                          onChange={handleProfileImageFileChange}
+                        />
+                      </label>
                     </div>
                   </div>
                 </div>
@@ -3864,26 +3880,29 @@ export default function App() {
                     </div>
                   )}
 
-                  {/* Add Portfolio Image Controls */}
+                  {/* Add Portfolio Image via File Upload */}
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '20px' }}>
-                    <label style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>Add Custom Image Link</label>
-                    <div style={{ display: 'flex', gap: '8px' }}>
-                      <input 
-                        type="text" 
-                        value={newPortfolioUrl}
-                        onChange={(e) => setNewPortfolioUrl(e.target.value)}
-                        placeholder="Paste image URL here"
-                        style={{ flexGrow: 1, padding: '10px', background: 'var(--bg-tertiary)', border: '1px solid var(--border-light)', borderRadius: '8px', color: 'var(--text-primary)', outline: 'none', fontSize: '0.82rem' }}
+                    <label style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>Upload a Photo from Your Device</label>
+                    <label
+                      style={{
+                        display: 'inline-flex', alignItems: 'center', gap: '8px',
+                        padding: '10px 18px', borderRadius: '8px', fontSize: '0.85rem',
+                        background: isUploadingPortfolio ? 'var(--bg-tertiary)' : 'var(--bg-secondary)',
+                        border: '1px dashed var(--accent-gold)',
+                        color: isUploadingPortfolio ? 'var(--text-muted)' : 'var(--accent-gold)',
+                        fontWeight: 600, cursor: isUploadingPortfolio ? 'not-allowed' : 'pointer',
+                        alignSelf: 'start', transition: 'all 0.2s'
+                      }}
+                    >
+                      {isUploadingPortfolio ? '⏳ Uploading...' : '📁 Choose & Upload Photo'}
+                      <input
+                        type="file"
+                        accept="image/*"
+                        style={{ display: 'none' }}
+                        disabled={isUploadingPortfolio}
+                        onChange={handlePortfolioFileChange}
                       />
-                      <button 
-                        type="button" 
-                        onClick={() => handleAddPortfolioImage(newPortfolioUrl)}
-                        className="gold-glow-btn"
-                        style={{ padding: '0 16px', justifyContent: 'center' }}
-                      >
-                        <Plus size={16} />
-                      </button>
-                    </div>
+                    </label>
                   </div>
 
                   {/* Curated Preset Picker */}
@@ -3898,7 +3917,7 @@ export default function App() {
                       ].map((item, idx) => (
                         <div 
                           key={idx} 
-                          onClick={() => handleAddPortfolioImage(item.url)}
+                          onClick={() => handleAddPortfolioPreset(item.url)}
                           className="preset-photo-card animate-hover"
                           style={{ 
                             position: 'relative', 
