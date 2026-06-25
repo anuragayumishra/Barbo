@@ -628,11 +628,8 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     }
   }, [currentUser]);
 
-  // Load initial services catalog from database (only if no local data exists)
+  // Load initial services catalog from database
   useEffect(() => {
-    const hasLocalServices = localStorage.getItem('barbo_services');
-    if (hasLocalServices) return; // Preserve locally-edited services
-
     const fetchServices = async () => {
       try {
         const res = await fetch(`${BASE_URL}/services`);
