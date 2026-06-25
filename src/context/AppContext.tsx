@@ -103,7 +103,7 @@ interface AppContextType {
   rescheduleAppointment: (appointmentId: string, date: string, startTime: string, serviceIds?: string[]) => Promise<{ success: boolean; message: string }>;
   updateAppointmentStatus: (appointmentId: string, status: 'upcoming' | 'in_progress' | 'completed' | 'cancelled', cancellationReason?: string) => void;
   updateBarberDelay: (barberId: string, delayStatus: string) => void;
-  updateBarberSettings: (barberId: string, settings: { openingTime: string; closingTime: string; workingDays: string; mapsUrl: string; lat?: number; lon?: number; reason?: string }) => Promise<{ success: boolean; message: string }>;
+  updateBarberSettings: (barberId: string, settings: { openingTime: string; closingTime: string; workingDays: string; mapsUrl: string; lat?: number; lon?: number; reason?: string; title?: string }) => Promise<{ success: boolean; message: string }>;
   updateBarberProfileImage: (barberId: string, url: string) => Promise<{ success: boolean; message: string }>;
   addBarberPortfolioImage: (barberId: string, url: string) => Promise<{ success: boolean; message: string }>;
   deleteBarberPortfolioImage: (barberId: string, url: string) => Promise<{ success: boolean; message: string }>;
@@ -1139,7 +1139,7 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
   const updateBarberSettings = async (
     barberId: string, 
-    settings: { openingTime: string; closingTime: string; workingDays: string; mapsUrl: string; lat?: number; lon?: number; reason?: string }
+    settings: { openingTime: string; closingTime: string; workingDays: string; mapsUrl: string; lat?: number; lon?: number; reason?: string; title?: string }
   ) => {
     const activeBarber = barbers.find(b => b.id === barberId);
     const currentMapsUrl = activeBarber?.mapsUrl || '';
@@ -1152,7 +1152,8 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           ...barber, 
           openingTime: settings.openingTime, 
           closingTime: settings.closingTime, 
-          workingDays: settings.workingDays 
+          workingDays: settings.workingDays,
+          title: settings.title || barber.title
         } : barber))
       );
     } else {
@@ -1790,8 +1791,8 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         name: app.shopName,
         title: 'Premium Professional Grooming',
         specialty: 'Custom Styling & Grooming',
-        rating: 4.8,
-        reviewsCount: 0,
+        rating: 5.0,
+        reviewsCount: 1,
         imageUrl: 'https://images.unsplash.com/photo-1585747860715-2ba37e788b70?auto=format&fit=crop&q=80&w=250&h=250',
         delayStatus: 'On Time',
         portfolioImages: [],

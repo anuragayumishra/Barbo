@@ -431,6 +431,7 @@ export default function App() {
       setSettingsClosingTime(activeBarber.closingTime || '21:00');
       setSettingsWorkingDays(activeBarber.workingDays ? activeBarber.workingDays.split(',') : ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']);
       setSettingsMapsUrl(activeBarber.mapsUrl || '');
+      setSettingsTagline(activeBarber.title || 'Premium Professional Grooming');
       setProfileImageUrlInput(activeBarber.imageUrl || '');
       setLocationChangeReason('');
     }
@@ -565,6 +566,7 @@ export default function App() {
   const [settingsClosingTime, setSettingsClosingTime] = useState('');
   const [settingsWorkingDays, setSettingsWorkingDays] = useState<string[]>([]);
   const [settingsMapsUrl, setSettingsMapsUrl] = useState('');
+  const [settingsTagline, setSettingsTagline] = useState('');
   const [locationChangeReason, setLocationChangeReason] = useState('');
   const [isSavingSettings, setIsSavingSettings] = useState(false);
   const [editingServiceId, setEditingServiceId] = useState<string | null>(null);
@@ -3568,6 +3570,18 @@ export default function App() {
                 </p>
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                  {/* Shop Tagline */}
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.78rem', color: 'var(--text-secondary)', marginBottom: '6px' }}>Shop Tagline / Slogan</label>
+                    <input 
+                      type="text" 
+                      value={settingsTagline}
+                      onChange={(e) => setSettingsTagline(e.target.value)}
+                      placeholder="e.g. Premium Professional Grooming"
+                      style={{ width: '100%', padding: '10px', background: 'var(--bg-tertiary)', border: '1px solid var(--border-light)', borderRadius: '8px', color: 'var(--text-primary)', outline: 'none', fontSize: '0.85rem' }}
+                    />
+                  </div>
+
                   {/* Hours Grid */}
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                     <div>
@@ -3734,7 +3748,8 @@ export default function App() {
                         mapsUrl: settingsMapsUrl.trim(),
                         lat: parsedLat,
                         lon: parsedLon,
-                        reason: isLocationChanged ? locationChangeReason.trim() : undefined
+                        reason: isLocationChanged ? locationChangeReason.trim() : undefined,
+                        title: settingsTagline.trim()
                       });
 
                       setIsSavingSettings(false);

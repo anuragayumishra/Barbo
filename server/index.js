@@ -1402,10 +1402,10 @@ app.patch('/api/barbers/:id/delay', async (req, res) => {
   }
 });
 
-// 9.05 Update Barber Settings (operating hours, days off, and map URL)
+// 9.05 Update Barber Settings (operating hours, days off, tagline/title, and map URL)
 app.put('/api/barbers/:id/settings', async (req, res) => {
   const { id } = req.params;
-  const { openingTime, closingTime, workingDays, mapsUrl, lat, lon } = req.body;
+  const { openingTime, closingTime, workingDays, mapsUrl, lat, lon, title } = req.body;
 
   if (!openingTime || !closingTime || !workingDays || !mapsUrl) {
     return res.status(400).json({ success: false, message: 'openingTime, closingTime, workingDays, and mapsUrl are required' });
@@ -1435,6 +1435,9 @@ app.put('/api/barbers/:id/settings', async (req, res) => {
     const currentMapsUrl = barberRows[0].maps_url;
     const isLocationChanged = mapsUrl.trim().toLowerCase() !== currentMapsUrl.trim().toLowerCase();
 
+    // Tagline/title default or updated value
+    const updatedTitle = title ? title.trim() : 'Premium Professional Grooming';
+
     if (isLocationChanged) {
       // If location changed, require reason
       const { reason } = req.body;
@@ -1452,26 +1455,26 @@ app.put('/api/barbers/:id/settings', async (req, res) => {
         [id, resolved.mapsUrl, Number(resolved.lat), Number(resolved.lon), reason.trim()]
       );
 
-      // Update schedule details immediately, but leave location unchanged in barbers table
+      // Update schedule and tagline immediately, but leave location unchanged in barbers table
       await pool.query(
         `UPDATE barbers 
-         SET opening_time = ?, closing_time = ?, working_days = ? 
+         SET opening_time = ?, closing_time = ?, working_days = ?, title = ? 
          WHERE id = ?`,
-        [openingTime, closingTime, workingDays, id]
+        [openingTime, closingTime, workingDays, updatedTitle, id]
       );
 
       return res.json({ 
         success: true, 
-        message: 'Schedule updated immediately. Location change request submitted for Admin approval!',
+        message: 'Schedule & tagline updated immediately. Location change request submitted for Admin approval!',
         locationChangePending: true 
       });
     }
 
-    // If location did not change, update settings directly
+    // If location did not change, update settings directly including tagline
     const resolved = await resolveMapsUrlAndCoords(mapsUrl, lat, lon);
     await pool.query(
       `UPDATE barbers 
-       SET opening_time = ?, closing_time = ?, working_days = ?, maps_url = ?, lat = ?, lon = ? 
+       SET opening_time = ?, closing_time = ?, working_days = ?, maps_url = ?, lat = ?, lon = ?, title = ? 
        WHERE id = ?`,
       [
         openingTime,
@@ -1480,6 +1483,7 @@ app.put('/api/barbers/:id/settings', async (req, res) => {
         resolved.mapsUrl,
         Number(resolved.lat),
         Number(resolved.lon),
+        updatedTitle,
         id
       ]
     );
@@ -2128,8 +2132,8 @@ app.post('/api/admin/applications/:id/approve', async (req, res) => {
         app.shop_name,
         'Premium Professional Grooming',
         'Custom Styling & Grooming',
-        4.8,
-        0,
+        5.0,
+        1,
         'https://images.unsplash.com/photo-1585747860715-2ba37e788b70?auto=format&fit=crop&q=80&w=250&h=250',
         'On Time',
         app.location,
