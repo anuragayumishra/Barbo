@@ -412,65 +412,8 @@ const INITIAL_BARBERS: Barber[] = [
   }
 ];
 
-const INITIAL_APPOINTMENTS: Appointment[] = [
-  {
-    id: 'a-mock-1',
-    customerId: 'cust-aayu',
-    customerName: 'Aayu',
-    barberId: 'b1',
-    barberName: 'ScissorsRock Hair Studio',
-    date: new Date().toISOString().split('T')[0], // Today
-    startTime: '10:00',
-    endTime: '10:50',
-    services: [
-      INITIAL_SERVICES[0], // Luxe Haircut (30m - ₹250)
-      INITIAL_SERVICES[2], // Traditional Champi (20m - ₹150)
-    ],
-    totalPrice: 400,
-    totalDuration: 50,
-    status: 'completed',
-    travelOtp: '2026',
-    notifications: ['Customer has arrived!', 'OTP confirmed.'],
-  },
-  {
-    id: 'a-mock-2',
-    customerId: 'cust-aayu',
-    customerName: 'Aayu',
-    barberId: 'b1',
-    barberName: 'ScissorsRock Hair Studio',
-    date: new Date().toISOString().split('T')[0], // Today
-    startTime: '14:30',
-    endTime: '15:20',
-    services: [
-      INITIAL_SERVICES[0], // Luxe Haircut
-      INITIAL_SERVICES[1], // Beard Sculpting
-    ],
-    totalPrice: 370,
-    totalDuration: 50,
-    status: 'upcoming',
-    travelOtp: '1099',
-    notifications: [
-      'Customer has departed from Jinsi Home.',
-      'Transit simulation running: ETA updated dynamically.'
-    ],
-    userLat: 23.2495,
-    userLon: 77.4172,
-    barberLat: 23.232696,
-    barberLon: 77.429901,
-    travelLat: 23.2425,
-    travelLon: 77.4190,
-    travelSimProgress: 0,
-    travelDistance: 820,
-    travelEta: 6,
-    travelStatus: 'Departing Jinsi Home...',
-    travelRouteCoordinates: [
-      { lat: 23.2495, lng: 77.4172 },
-      { lat: 23.2460, lng: 77.4180 },
-      { lat: 23.2435, lng: 77.4185 },
-      { lat: 23.2425, lng: 77.4190 }
-    ]
-  },
-];
+
+
 
 // ==========================================
 // MOCK USERS DATABASE (CREDENTIALS)
@@ -563,20 +506,17 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   useEffect(() => {
     localStorage.setItem('barbo_services', JSON.stringify(services));
   }, [services]);
-  const [appointments, setAppointments] = useState<Appointment[]>(() => {
-    const saved = localStorage.getItem('barbo_appointments');
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch (e) {}
-    }
-    return INITIAL_APPOINTMENTS;
-  });
+  // Always start with an empty list — appointments are loaded from the server after login.
+  // Using localStorage as the initial state caused a cross-device bug where Device B
+  // (phone) had no localStorage data yet and showed an empty appointments list even
+  // though appointments existed in the database.
+  const [appointments, setAppointments] = useState<Appointment[]>([]);
 
-  // Persist appointments locally to support offline fallback state
+  // Persist appointments locally PER USER to support offline fallback state only.
+  // We scope the key to the user ID so different accounts never bleed into each other.
   useEffect(() => {
     if (currentUser) {
-      localStorage.setItem('barbo_appointments', JSON.stringify(appointments));
+      localStorage.setItem(`barbo_appointments_${currentUser.id}`, JSON.stringify(appointments));
     }
   }, [appointments, currentUser]);
 
@@ -708,8 +648,8 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           const data = await res.json();
           setAppointments(data);
         } else {
-          // Fallback to local storage if DB is down but server is running
-          const saved = localStorage.getItem('barbo_appointments');
+          // Server responded but with an error — fall back to user-scoped localStorage
+          const saved = localStorage.getItem(`barbo_appointments_${currentUser.id}`);
           if (saved) {
             try {
               setAppointments(JSON.parse(saved));
@@ -717,8 +657,9 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           }
         }
       } catch (err) {
+        // Network completely unreachable — use user-scoped offline cache
         console.warn("Failed to load appointments from backend. Using offline seeds fallback.");
-        const saved = localStorage.getItem('barbo_appointments');
+        const saved = localStorage.getItem(`barbo_appointments_${currentUser.id}`);
         if (saved) {
           try {
             setAppointments(JSON.parse(saved));
